@@ -3,3 +3,4 @@ __pycache__/
 .DS_Store
 # Local copy of the engine's generated API types, used by the course links.
 teach/reference/engine/
+logs/

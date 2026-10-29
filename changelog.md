@@ -93,3 +93,9 @@
 - No plugin has run in a live session. Validation checks structure and declared calls, not behaviour.
 - Not committed, and no GitHub repository has been created.
 - Known limits: model-router also replaces a subagent type's own model; design-picker can hold the choice dialog for up to about 25 seconds; terminal-browser needs Zenbu's app; jev-skill-suggestion needs a TypeSafe Jev key.
+
+## 2026-10-29, sharing
+
+### Changed
+- `.gitignore` now ignores `logs/`, where local tool-call hooks write their logs.
+- Shared as the internal repo `coherentsolutionstrainingcenter/claude-code-mods`. Forking is off and `main` needs one approving review.
