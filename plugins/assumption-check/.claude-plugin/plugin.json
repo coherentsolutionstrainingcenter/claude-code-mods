@@ -1,0 +1,10 @@
+{
+  "name": "assumption-check",
+  "version": "0.1.0",
+  "description": "After a reply, lists the small guesses Claude made. Mark each Right or Wrong, and send the wrong ones back to Claude",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

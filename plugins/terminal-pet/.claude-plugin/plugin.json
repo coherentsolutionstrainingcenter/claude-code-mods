@@ -1,0 +1,10 @@
+{
+  "name": "terminal-pet",
+  "version": "0.1.0",
+  "description": "A small text pet in the band above the prompt that eats the files Claude reads, with /pet on, /pet off and /pet name",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

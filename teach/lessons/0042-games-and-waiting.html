@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0042: Games and waiting</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0042 · Family</p>
+<h1>Games and waiting</h1>
+<p class="lede">Games and waiting mods give you something to play or watch while Claude works.</p>
+
+<dl class="meta">
+  <dt>Best version</dt>
+  <dd>10b, Snake, by Hamza Zafar. <a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/snake">github.com/hamzafer/claude-code-mods (mods/snake)</a></dd>
+  <dt>Status</dt>
+  <dd>Cloned at commit 2e75961 (Oct 27, 2026) in the scratchpad. Not installed or run.</dd>
+  <dt>Variants</dt>
+  <dd>10a, 10b (best, cloned), 10c, 10d, 11, 11a. All but 10b are video only.</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>hooks/snake.ts</code> (64 lines), <code>hooks/game.tsx</code> (95 lines), <code>types/index.d.ts</code>, <code>tests/snake.test.ts</code> (57 lines), <code>tests/mod.test.tsx</code> (141 lines), <code>tsconfig.json</code></dd>
+  <dt>Author and license</dt>
+  <dd>Hamza Zafar (plugin.json). MIT License, Copyright 2026 Hamza Zafar, in the repository's LICENSE file.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>snake</code> 0.2.3, by Hamza Zafar, MIT · upstream <a href="https://github.com/hamzafer/claude-code-mods">https://github.com/hamzafer/claude-code-mods</a>.<br>Install: <code>claude plugin install snake@waraxe-claude-mods</code> · folder <a href="../../plugins/snake/">plugins/snake</a> · <a href="../../plugins/snake/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Snake is a small game that runs in a pane while Claude works. It stays off until you type <code>/snake</code>, and it pauses when Claude's turn completes. The rules sit in <code>snake.ts</code> as plain functions, so the tests can run them without a pane.</p>
+<p>It is a toy. It does not serve the mission and is included for completeness.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>10a</td><td>Doom lobby</td><td>No description on disk. The synthesis grades it 2.</td><td>Video only: <a href="https://www.youtube.com/watch?v=moOBIaIb4a8">video</a> · <a href="../reference/mod-catalogue.html#m10a">catalogue</a></td></tr>
+    <tr><td>10b</td><td>Snake (best)</td><td>A game of Snake in a pane while Claude works. It pauses when the turn ends.</td><td><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/snake">GitHub</a>, cloned</td></tr>
+    <tr><td>10c</td><td>Road Trip</td><td>No description on disk. The synthesis grades it 2.</td><td>Video only: <a href="https://www.youtube.com/watch?v=LDn7rQKIFro">video</a> · <a href="../reference/mod-catalogue.html#m10c">catalogue</a></td></tr>
+    <tr><td>10d</td><td>Arcade</td><td>Named in FAMILIES.md only. The synthesis groups it with Snake and grades it 2.</td><td>Video only: <a href="https://www.youtube.com/watch?v=WTG3X4r1lA4">video</a> · <a href="../reference/mod-catalogue.html#m10d">catalogue</a></td></tr>
+    <tr><td>11</td><td>Waiting video</td><td>No description on disk. The synthesis grades it 1.</td><td>Video only: <a href="https://www.youtube.com/watch?v=EiThSVZ8pME">video</a> · <a href="../reference/mod-catalogue.html#m11">catalogue</a></td></tr>
+    <tr><td>11a</td><td>YouTube TV</td><td>No description on disk. The synthesis grades it 1.</td><td>Video only: <a href="https://www.youtube.com/watch?v=aD-h7Bcn5OY">video</a> · <a href="../reference/mod-catalogue.html#m11a">catalogue</a></td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>Snake has three parts: the rules in <code>snake.ts</code>, the pane in <code>game.tsx</code>, and the hooks in <code>register.tsx</code>. The steps below follow that order. Each snippet is copied from the clone.</p>
+
+<h3>1. Hold the game's values in host atoms</h3>
+<p><code>register.tsx</code> creates four atoms. The host keeps them, so a hot reload keeps the game's mode and scores.</p>
+<pre><code>// Held by the host, so a hot reload keeps the game's mode and scores.
+const isPlaying = atom({ plugin: 'snake', key: 'isPlaying' } as const, false)
+const score = atom({ plugin: 'snake', key: 'score' } as const, 0)
+const best = atom({ plugin: 'snake', key: 'best' } as const, 0)
+const isOn = atom({ plugin: 'snake', key: 'isOn' } as const, false)</code></pre>
+
+<h3>2. Turn it on and off with /snake</h3>
+<p>The <code>command.run</code> hook handles <code>/snake</code>. A bare <code>/snake</code> toggles the game. <code>on</code> and <code>off</code> say which state you want. If Claude is working when you turn it on, the game plays at once. Otherwise it waits for the next turn.</p>
+<pre><code>  on('command.run', { command: 'snake' }, async ($, e) =&gt; {
+    const arg = e.args.trim().toLowerCase()
+    if (!['', 'on', 'off', 'stop'].includes(arg)) return { text: 'usage: /snake toggles it, /snake on or /snake off says which' }
+    // A bare /snake toggles; `stop` and `on` say which.
+    const isOff = arg === 'stop' || arg === 'off' || (arg !== 'on' &amp;&amp; (await read($, isOn)))
+    if (isOff) {
+      await update($, isOn, () =&gt; false)
+      await update($, isPlaying, () =&gt; false)
+      await $.ui.close({ id: PANE })
+      return { text: 'Snake is off. /snake (or /snake on) turns it back on.' }
+    }
+    await update($, isOn, () =&gt; true)
+    await update($, isPlaying, () =&gt; isWorking) // turned on mid-turn: play now, not next turn
+    await $.ui.open({ id: PANE, title: 'Snake', focus: true })
+    return { text: 'Snake is on. It plays while Claude works. /snake again turns it off.' }
+  })</code></pre>
+
+<h3>3. Play while a turn runs, and pause when it ends</h3>
+<p>The <code>turn.start</code> hook sets the game to play, if it is on. The <code>turn.complete</code> hook stops play when the main agent's turn ends. It checks <code>e.agentId</code>, so a sub-agent finishing does not pause the game.</p>
+<pre><code>  on('turn.start', async ($, e, next) =&gt; {
+    isWorking = true
+    if (!(await read($, isOn))) return next(e) // opt-in: nothing until /snake
+    await update($, isPlaying, () =&gt; true)
+    void $.ui.open({ id: PANE, title: 'Snake' }) // seats from 144 columns when opened unasked; /snake opens it at any width
+    return next(e)
+  })
+
+  on('turn.complete', async ($, e, next) =&gt; {
+    const r = await next(e)
+    if (!e.agentId) {
+      isWorking = false
+      await update($, isPlaying, () =&gt; false)
+    }
+    return r
+  })</code></pre>
+
+<h3>4. Keep the rules pure</h3>
+<p><code>snake.ts</code> holds the rules as functions with no <code>$</code> and no timers. <code>step</code> moves the snake one cell. It returns whether food was eaten and whether the snake crashed. A crash starts a new game with score zero.</p>
+<pre><code>export function step(game: Game): { game: Game; ate: boolean; crashed: boolean } {
+  const dir = game.nextDir
+  const head = game.snake[0]!
+  const next = { x: head.x + MOVES[dir].x, y: head.y + MOVES[dir].y }
+  const ate = next.x === game.food.x &amp;&amp; next.y === game.food.y
+  const body = ate ? game.snake : game.snake.slice(0, -1)
+
+  const hitWall = next.x &lt; 0 || next.y &lt; 0 || next.x &gt;= game.cols || next.y &gt;= game.rows
+  const hitSelf = body.some(c =&gt; c.x === next.x &amp;&amp; c.y === next.y)
+  if (hitWall || hitSelf) {
+    return { game: newGame(game.cols, game.rows, game.seed), ate: false, crashed: true }
+  }
+
+  const snake = [next, ...body]
+  if (!ate) return { game: { ...game, snake, dir }, ate, crashed: false }
+  const placed = placeFood(game.cols, game.rows, snake, game.seed)
+  return { game: { ...game, snake, dir, food: placed.food, seed: placed.seed, score: game.score + 1 }, ate, crashed: false }
+}</code></pre>
+
+<h3>5. Run the clock and keys inside the pane</h3>
+<p>The pane is a client module, <code>game.tsx</code>. It has its own clock, <code>surface.every</code>, which fires every 120 ms. Each tick checks the pane size, and it steps the game only while <code>isPlaying</code> is true. Arrow keys and W, A, S, D set the next direction through <code>surface.onKey</code>.</p>
+<pre><code>  if (surface.state === undefined) {
+    const local: Local = { game: null, live: { props } }
+    surface.every(TICK_MS, () =&gt; {
+      const now = surface.state
+      if (!now) return
+      const size = gridSize(surface.columns, surface.rows)
+      if (size.cols &lt; MIN_COLS || size.rows &lt; MIN_ROWS) return
+      if (!now.game || now.game.cols !== size.cols || now.game.rows !== size.rows) {
+        surface.setState({ ...now, game: newGame(size.cols, size.rows, Date.now() % 100000) }) // a new or resized pane
+        return
+      }
+      if (!now.live.props.isPlaying) return
+      const r = step(now.game)
+      if (r.ate || r.crashed) surface.post({ score: r.game.score })
+      surface.setState({ ...now, game: r.game })
+    })</code></pre>
+
+<h3>6. Post the score back and save the best</h3>
+<p>The pane sends its score with <code>surface.post</code> whenever the snake eats or crashes. The <code>ui.message</code> hook sets the score atom. If it beats the best, the hook saves the new best in the plugin store under the key <code>best</code>.</p>
+<pre><code>  // The game posts its score whenever it eats or crashes.
+  on('ui.message', async ($, e) =&gt; {
+    const data = e.data as { score?: unknown }
+    if (e.element !== 'snake' || typeof data?.score !== 'number') return {}
+    const now = data.score
+    await update($, score, () =&gt; now)
+    const before = await read($, best)
+    if (now &gt; before) {
+      await update($, best, () =&gt; now)
+      await $.store.set(BEST_KEY, now)
+    }
+    return {}
+  })</code></pre>
+
+<h3>7. Test the rules without a pane</h3>
+<p>The tests call <code>newGame</code>, <code>step</code> and <code>turn</code> directly. This test checks that a wall ends the game and resets the score.</p>
+<pre><code>  test('a wall resets the game', () =&gt; {
+    let g = at(newGame(20, 10), { x: 0, y: 0 })
+    let crashed = false
+    for (let i = 0; i &lt; 20 &amp;&amp; !crashed; i++) {
+      const r = step(g)
+      g = r.game
+      crashed = r.crashed
+    }
+    expect(crashed).toBe(true)
+    expect(g.snake.length).toBe(3)
+    expect(g.score).toBe(0)
+  })</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install snake@claude-code-mods</code></pre>
+<ul class="steps">
+  <li>Type <code>/snake</code>. The pane opens with focus. The game moves only while a Claude turn runs, so if Claude is idle it waits for the next turn.</li>
+  <li>Steer with the arrow keys or W, A, S and D. A turn straight back on itself is ignored. The engine's types say Escape hands the focus back.</li>
+  <li>When the turn ends, the game pauses and the pane says that Claude is done and it is your turn.</li>
+  <li>While the game plays with a score above zero, the spinner line shows the score and the best score.</li>
+  <li>Type <code>/snake</code> again, or <code>/snake off</code> or <code>/snake stop</code>, to turn it off.</li>
+</ul>
+<p><strong>What it costs.</strong> The source makes no model calls and no network calls. The pane's clock fires every 120 ms while the pane is open, and it moves only when a turn is running. The best score is kept in the plugin store.</p>
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>It runs only in the terminal or the desktop app. Other surfaces see one line of text.</li>
+  <li>The board needs at least 10 by 6 cells. Each cell is two columns wide, and two rows go to the header and footer, so the pane needs roughly 20 columns and 9 rows. A smaller pane shows "Make the pane bigger to play".</li>
+  <li>A wall or the snake's own body ends the game. The board restarts at three cells with score zero. The best score stays.</li>
+  <li>I did not install or run it, so none of this is tested here.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>What stops Snake when Claude finishes?</summary>
+  <p>The <code>turn.complete</code> hook sets <code>isPlaying</code> to false, but only for the main agent, because it checks that there is no <code>agentId</code>. The game then stops stepping. The pane shows that it is paused.</p>
+</details>
+<details class="check">
+  <summary>Where is the best score kept?</summary>
+  <p>In two places. The <code>best</code> atom holds it while the host runs. The plugin store keeps it under the key <code>best</code>. <code>session.start</code> reads the stored value back, and <code>ui.message</code> saves a new best.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/snake">Snake on GitHub: mods/snake</a></li>
+  <li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/mods/snake/hooks/register.tsx">Hooks: register.tsx (scratchpad clone)</a></li>
+  <li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/mods/snake/hooks/game.tsx">Pane: game.tsx (scratchpad clone)</a></li>
+  <li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/mods/snake/hooks/snake.ts">Rules: snake.ts (scratchpad clone)</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0041-cosmetic-mods.html">← 0041 Cosmetic mods</a>
+  <a href="../index.html">Index</a>
+  <a href="0043-panels-and-toys.html">0043 Panels and toys →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

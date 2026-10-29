@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0031: Terminal browser</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0031 · Family</p>
+<h1>Terminal browser</h1>
+<p class="lede">This family puts a real web browser in a side pane inside Claude Code, drawn in the terminal, so you can preview pages and let the agent drive it.</p>
+
+<dl class="meta">
+  <dt>Best version</dt>
+  <dd>terminal-browser 0.0.2 by zenbu-labs, from <a href="https://github.com/zenbu-labs/terminal-browser/tree/main/claude-code-plugin">zenbu-labs/terminal-browser, claude-code-plugin</a></dd>
+  <dt>Status</dt>
+  <dd>Cloned. I read the plugin folder of the clone in the scratchpad. I did not read the rest of the repository.</dd>
+  <dt>Variants</dt>
+  <dd>22</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code> (372 lines, all read), <code>hooks/browser.d.ts</code>, <code>README.md</code>. The other hook files (<code>surface.tsx</code>, <code>bridge-protocol.ts</code>, <code>urls.ts</code>) are not covered here.</dd>
+  <dt>Author and license</dt>
+  <dd>zenbu-labs, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>terminal-browser</code> 0.0.2, by Zenbu Labs, MIT · upstream <a href="https://github.com/zenbu-labs/terminal-browser">https://github.com/zenbu-labs/terminal-browser</a>.<br>Install: <code>claude plugin install terminal-browser@waraxe-claude-mods</code> · folder <a href="../../plugins/terminal-browser/">plugins/terminal-browser</a> · <a href="../../plugins/terminal-browser/INSTRUCTIONS.md">instructions</a><br>Needs: the terminal-browser app from Zenbu Labs.</div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>terminal-browser is a plugin with one hook module, <code>hooks/register.tsx</code>. It starts a local bridge with the <code>terminal-browser</code> program, reads new frames from it, and draws them in a side pane named <code>browser</code>. It also adds the <code>/browser</code> command, and an open and close tool for Claude when you turn on the <code>agentTool</code> option. Other plugins can use the pane through <code>$.browser.open</code> and <code>$.browser.close</code>.</p>
+<p>It matters for your mission because it calls a local program, talks to it over HTTP with a token, and offers an API to other plugins, so you must be able to name each call and say why it is there.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td>22</td><td>terminal-browser</td><td>A real browser pane inside Claude Code, opened with <code>/browser</code>.</td><td>Cloned: <a href="https://github.com/zenbu-labs/terminal-browser/tree/main/claude-code-plugin">scratchpad clone</a>, or <a href="https://github.com/zenbu-labs/terminal-browser/tree/main/claude-code-plugin">GitHub</a>.</td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The plugin has one hook module. The steps follow the order in which its main parts appear in the file. A comment in the file calls one part of it "a hack", because the plugin API does not let <code>$</code> or the result of <code>next</code> be passed to functions. Step 1 shows that part.</p>
+
+<h3>1. Expose browser.open and browser.close</h3>
+<p><code>engine.create</code> adds a <code>browser</code> object. Its open and close functions throw if they run, with a message that the noun is served by its hooks. The <code>browser.open</code> and <code>browser.close</code> hooks do the work, and return their result as <code>value</code>. Those two event names are not in the engine's type file, so they belong to this plugin.</p>
+<pre><code>  on('engine.create', async ($, e, next) =&gt; {
+    const built = await next(e)
+    const servedByHooks = () =&gt; { throw new Error('the browser noun is served by its hooks') }
+    const browser: Browser = { open: servedByHooks, close: servedByHooks }
+    return { ...built, browser }
+  })
+
+  on('browser.open', async ($, e) =&gt; {
+    const opened = await openBrowser($, e.url ?? null)
+    return { value: opened }
+  })
+
+  on('browser.close', async ($) =&gt; {
+    return { value: await closeBrowser($) }
+  })</code></pre>
+
+<h3>2. Check the program and start the bridge</h3>
+<p><code>startBridge</code> first runs the program's <code>capabilities</code> command. The program must report <code>embedding</code> and <code>image-frames</code>. If not, the function returns an install or upgrade message. Then it runs <code>claude-bridge launch</code>, reads the port and token from its output, and starts the watch loop.</p>
+<pre><code>async function startBridge($: EngineInterface): Promise&lt;{ ok: true } | { ok: false; error: string }&gt; {
+  const command = await terminalBrowserCommand($)
+  const check = await checkCapabilities($, command)
+  if (!check.ok) {
+    return {
+      ok: false,
+      error: check.installed
+        ? 'Newer terminal-browser version required, run terminal-browser upgrade'
+        : `Please install terminal-browser first - ${INSTALL_URL}`,
+    }
+  }
+  let report: unknown = null
+  try {
+    const { stdout, stderr, exitCode } = await $.process.run([...command, 'claude-bridge', 'launch'], { timeoutMs: 20_000 })
+    const line = stdout.split('\n').find((text: string) =&gt; text.startsWith('{'))
+    report = line ? JSON.parse(line) : { error: stderr.trim() || `exit ${exitCode}`, code: 'start' }
+  } catch (err) {
+    report = { error: String(err), code: 'start' }
+  }
+  if (!isLaunchReport(report) || !('port' in report)) {
+    const detail = isLaunchReport(report) &amp;&amp; 'error' in report ? report.error : 'terminal-browser could not start'
+    return { ok: false, error: `${detail}` }
+  }
+  state.port = report.port
+  state.token = report.token
+  void watchBridge($)
+  return { ok: true }
+}</code></pre>
+
+<h3>3. Talk to the bridge over localhost with a token</h3>
+<p><code>post</code> sends a JSON body to the bridge's port on <code>127.0.0.1</code>. <code>bridgeUrl</code> and <code>authHeaders</code>, on lines 45 and 46, build the address and the bearer header. The function returns <code>null</code> on any failure. This file has no model call: nothing in it uses <code>$.model</code>.</p>
+<pre><code>async function post($: EngineInterface, path: string, body: unknown): Promise&lt;unknown&gt; {
+  if (state.port === null) return null
+  try {
+    const response = await $.http.fetch(bridgeUrl(path), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body),
+    })
+    return response.ok ? JSON.parse(response.text || '{}') : null
+  } catch {
+    return null
+  }
+}</code></pre>
+
+<h3>4. Watch for new frames and draw them</h3>
+<p><code>watchBridge</code> asks the bridge for its state, sending the last version number it saw. When there is a new frame, it hands the frame to <code>$.ui.blit</code>. If the frame does not fit the pane, it redraws the pane instead. When the blit is refused, the code counts refusals and logs the reason on the third one.</p>
+<pre><code>    const frame = fresh.frame
+    if (!frame || frame.generation === state.frame?.generation) continue
+    state.frame = frame
+    if (!fitsMounted(frame)) {
+      $.ui.invalidate('ui.render')
+      continue
+    }
+    const result = await $.ui.blit({ requestId: PANE, key: IMAGE_KEY, source: imageSource(frame) })
+    if (!result.deny) {
+      denials = 0
+      continue
+    }
+    denials += 1
+    if (denials === DENIALS_BEFORE_LOGGING) $.ui.log(`terminal-browser: frame blit refused: ${result.deny}`)
+    const now = Date.now()
+    if (now - lastDeniedRedraw &gt;= DENIED_REDRAW_MS) {
+      lastDeniedRedraw = now
+      $.ui.invalidate('ui.render')
+    }</code></pre>
+
+<h3>5. Open the pane and point it at a page</h3>
+<p><code>openBrowser</code> starts the bridge if it is not running. It uses the address you gave, or the last page, or a start page. Then it opens the <code>browser</code> pane with focus. If the pane has not reported its size yet, the address waits in <code>pendingUrl</code> until it does.</p>
+<pre><code>async function openBrowser($: EngineInterface, raw: string | null): Promise&lt;{ ok: true; url: string } | { ok: false; error: string }&gt; {
+  if (state.port === null) {
+    const started = await startBridge($)
+    if (!started.ok) return started
+  }
+  const alive = state.last?.alive === true
+  const url = raw ? normalizeUrl(raw) : (alive &amp;&amp; state.last?.url ? state.last.url : START_URL)
+  state.pendingUrl = url
+  state.open = true
+  await $.ui.open({ id: PANE, title: 'browser', focus: true, rows: 24 })
+  $.ui.invalidate('ui.render')
+  if (state.region) {
+    state.pendingUrl = null
+    await post($, '/open', { url, ...state.region })
+  }
+  return { ok: true, url }
+}</code></pre>
+
+<h3>6. Register /browser and the optional tools</h3>
+<p>The <code>command.run</code> hook reads the arguments. <code>close</code>, or a bare <code>/browser</code> while the pane is open, closes it. Any other text is an address to open. <code>session.start</code> registers the command only in a terminal session. It registers the open and close tools only when <code>agentTool</code> is true.</p>
+<pre><code>  on('command.run', { command: 'browser' }, async ($, e) =&gt; {
+    const arg = e.args.trim()
+    if (arg === 'close' || (!arg &amp;&amp; state.open)) {
+      await closeBrowser($)
+      return { text: 'Closed terminal-browser' }
+    }
+    const opened = await openBrowser($, arg || null)
+    return { text: opened.ok ? 'Opened terminal-browser' : opened.error }
+  })</code></pre>
+
+<h3>7. Draw the pane and forward keys and scrolling</h3>
+<p>The <code>ui.render</code> hook for the <code>Pane</code> component draws the picture at the size of the pane, with a transparent <code>Client</code> placed over it. The <code>ui.message</code> hook sends size reports and key input to the bridge. The <code>ui.scroll</code> hook turns scrolling into mouse events.</p>
+<pre><code>  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) =&gt; {
+    if (e.surface !== 'terminal') {
+      const { Box } = await $.ui.resolve(e)
+      return &lt;Box /&gt;
+    }
+    const { Box, Client, Image } = await $.ui.resolve(e)
+    const rows = e.props.scroll.bodyRows &gt; 0 ? e.props.scroll.bodyRows : Math.max(8, (e.viewport?.rows ?? 30) - 8)
+    const cols = Math.max(1, e.props.bodyColumns &gt; 0 ? e.props.bodyColumns : (e.viewport?.columns ?? 80))
+    const frame = state.frame
+    const grid = frame ? imageGrid(frame, cols, rows) : null
+    state.mounted = grid
+    return (
+      &lt;Box flexDirection="column" width={cols} height={rows}&gt;
+        {frame &amp;&amp; grid ? (
+          &lt;Image key={IMAGE_KEY} source={imageSource(frame)} columns={grid.cols} rows={grid.rows} alt={IMAGE_ALT} /&gt;
+        ) : null}
+        &lt;Box position="absolute" top={0} left={0} width={cols} height={rows}&gt;
+          &lt;Client key={viewKey()} module="./surface.tsx" width={cols} height={rows} /&gt;
+        &lt;/Box&gt;
+      &lt;/Box&gt;
+    )
+  })</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add zenbu-labs/terminal-browser
+claude plugin install terminal-browser@terminal-browser</code></pre>
+<p>The marketplace name is <code>terminal-browser</code>, from the repository's <code>.claude-plugin/marketplace.json</code>.</p>
+
+<ul class="steps">
+  <li>Install the <code>terminal-browser</code> program first. The README gives a curl script and a Homebrew command. This page does not run them.</li>
+  <li>Add <code>"env": { "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1" }</code> to <code>~/.claude/settings.json</code>. The README says the plugin needs it. Then run <code>claude update</code>.</li>
+  <li>Type <code>/browser</code> to open the last page, or a start page. Type <code>/browser</code> followed by an address to open that page. Type <code>/browser close</code>, or <code>/browser</code> again with no address, to close it.</li>
+  <li>If you want Claude to open and close the pane itself, set the <code>agentTool</code> option under <code>pluginConfigs</code>. It is off by default.</li>
+  <li>To update, run <code>claude plugin update terminal-browser@terminal-browser</code>. For the program, run <code>terminal-browser upgrade</code>.</li>
+</ul>
+
+<p><strong>Cost.</strong> The hook module makes no model call. It runs the <code>terminal-browser</code> program to check capabilities and to start the bridge. It talks to that bridge on <code>127.0.0.1</code>. The source gives no figures for CPU or memory use.</p>
+
+<p><strong>Limits.</strong> The README and the code list these.</p>
+<ul>
+  <li>It needs a terminal with the kitty graphics protocol and unicode placeholders. The README names ghostty and kitty.</li>
+  <li>The mouse position can be slightly off. Claude Code's minimum chat width can stop you making the pane as large as you want.</li>
+  <li>Multiplexers can break the picture. The README says tmux does not work through this plugin yet, and that herdr performance is very bad.</li>
+  <li>It depends on the experimental function hooks API, which may change between releases.</li>
+  <li><code>/browser</code> is registered only in a terminal session, as the <code>session.start</code> hook shows.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the plugin check capabilities before it starts the bridge?</summary>
+  <p><code>startBridge</code> runs the program's <code>capabilities</code> command first. It needs both <code>embedding</code> and <code>image-frames</code>. If either is missing, the plugin does not start the bridge, and it tells you to install or upgrade the program.</p>
+</details>
+<details class="check">
+  <summary>How does the bridge know that a request comes from this plugin?</summary>
+  <p>The <code>launch</code> report gives a token. <code>post</code> and <code>fetchState</code> send it as a bearer token in the <code>authorization</code> header, on every request to <code>127.0.0.1</code>.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/zenbu-labs/terminal-browser/blob/main/claude-code-plugin/hooks/register.tsx">The plugin's hook module: hooks/register.tsx</a> (local clone)</li>
+  <li><a href="https://github.com/zenbu-labs/terminal-browser/blob/main/claude-code-plugin/hooks/browser.d.ts">The types other plugins use: hooks/browser.d.ts</a> (local clone)</li>
+  <li><a href="https://github.com/zenbu-labs/terminal-browser/blob/main/claude-code-plugin/README.md">The plugin's README</a> (local clone)</li>
+  <li><a href="https://github.com/zenbu-labs/terminal-browser/tree/main/claude-code-plugin">terminal-browser on GitHub</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0030-jev-skill-router.html">← 0030 Jev skill router</a>
+  <a href="../index.html">Index</a>
+  <a href="0032-today-report.html">0032 Today&#x27;s report →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

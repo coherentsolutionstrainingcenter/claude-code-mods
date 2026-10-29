@@ -1,0 +1,10 @@
+{
+  "name": "test-fail-magnet",
+  "version": "0.1.0",
+  "description": "Keeps the failing tests from your last test run in a Failing tests pane, with Fix to send them to Claude and Dismiss to clear them",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

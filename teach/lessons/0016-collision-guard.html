@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0016: collision-guard</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+  <p class="kicker">Lesson 0016 · collision-guard</p>
+  <h1>collision-guard</h1>
+  <p class="lede">It stops two chats from quietly overwriting each other: before an Edit or Write, it asks Proceed or Cancel if another chat changed that file in the last 30 minutes.</p>
+
+  <dl class="meta">
+    <dt>Version</dt>
+    <dd>0.1.0</dd>
+    <dt>Folder</dt>
+    <dd><code>/Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/collision-guard</code></dd>
+    <dt>Marketplace</dt>
+    <dd>waraxe-claude-mods</dd>
+    <dt>Hooks</dt>
+    <dd><code>tool.call</code>. It runs for every tool call and acts only on Edit and Write.</dd>
+    <dt>Calls</dt>
+    <dd><code>$.session.id()</code>, <code>$.store.get()</code>, <code>$.store.set()</code>, <code>$.clock.now()</code>, <code>$.ui.ask()</code></dd>
+    <dt>Files</dt>
+    <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.ts</code>, <code>README.md</code></dd>
+    <dt>Author and license</dt>
+    <dd>Igor Waraxe, MIT</dd>
+    <dt>Requires</dt>
+    <dd>Claude Code with the hooks engine. The types used here were written by Claude Code 2.1.308. The manifest sets no minimum version.</dd>
+  </dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>collision-guard</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install collision-guard@waraxe-claude-mods</code> · folder <a href="../../plugins/collision-guard/">plugins/collision-guard</a> · <a href="../../plugins/collision-guard/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+  <h2>What it is</h2>
+  <p>collision-guard sits in front of Edit and Write. Before either tool changes a file, it checks whether another chat changed that same file in the last 30 minutes. If one did, it asks you to choose Proceed or Cancel, and Cancel refuses the edit.</p>
+  <p>It matters for your mission because it shows, in one short hook, the event, the calls and the refusal that you must be able to explain before you publish.</p>
+
+  <h2>How it was built</h2>
+
+  <h3>1. Declare the hook module</h3>
+  <p>The file <code>hooks/hooks.json</code> names one module, <code>register.ts</code>. The engine loads that module and calls the <code>register</code> function it exports.</p>
+  <pre><code>{ "modules": ["./register.ts"] }</code></pre>
+
+  <h3>2. Pick the window and the tool</h3>
+  <p>The 30-minute window is one constant, in milliseconds. The hook answers only for <code>Edit</code> and <code>Write</code>. Every other tool call goes straight to <code>next(e)</code>, so it is not changed.</p>
+  <pre><code>// A file another chat edited less than this long ago is a collision risk.
+const WINDOW_MS = 30 * 60 * 1000
+
+type Touch = { session: string; at: number }
+
+export const register: Register = on =&gt; {
+  on('tool.call', async ($, e, next) =&gt; {
+    if (e.tool !== 'Edit' &amp;&amp; e.tool !== 'Write') {
+      return next(e)
+    }</code></pre>
+
+  <h3>3. Ask when another chat touched the file</h3>
+  <p>The store key is <code>touch:</code> followed by the file path. A record from a different session, less than 30 minutes old, triggers the question. Cancel, or a dialog that was dismissed, returns <code>{ deny }</code>, and the engine gives that text to the model as an error result.</p>
+  <pre><code>    const key = `touch:${e.file_path}`
+    const session = await $.session.id()
+    const last = (await $.store.get(key)) as Touch | undefined
+    const now = await $.clock.now()
+
+    if (last !== undefined &amp;&amp; last.session !== session &amp;&amp; now - last.at &lt; WINDOW_MS) {
+      const minutes = Math.max(1, Math.round((now - last.at) / 60000))
+      // A dismissed dialog, or a run with no one to ask, rejects: that counts as Cancel.
+      const choice = await $.ui
+        .ask(`Another chat edited ${e.file_path} ${minutes} min ago. Edit it here too?`, ['Proceed', 'Cancel'])
+        .catch(() =&gt; 'Cancel')
+
+      if (choice !== 'Proceed') {
+        return {
+          deny: `Collision guard held this edit: another chat changed ${e.file_path} ${minutes} min ago, and the user chose not to continue. Do not retry unless the user asks you to.`,
+        }
+      }
+    }</code></pre>
+
+  <div class="note"><strong>Why it waits.</strong> The hook awaits the question, so the tool call stays paused until you answer. The types say a hook's time limit counts only its own code, so the wait does not use it up. The <code>.catch</code> is there because the types say <code>$.ui.ask</code> also rejects when the dialog is dismissed and in a <code>-p</code> run, where no one can answer.</div>
+
+  <div class="note"><strong>Why it fails open.</strong> The registration has no <code>.catch</code> of its own. The types say a guard that throws, or goes past its 10-second budget for its own code, is skipped and the tool runs. So a broken store or clock lets the edit through with no question. The README does not mention this.</div>
+
+  <div class="note"><strong>Why no model call.</strong> The check needs only a session id, a time and a stored record. It sends nothing to a model, so it costs no tokens.</div>
+
+  <h3>4. Record the touch after a good edit</h3>
+  <p>After <code>next(e)</code> returns, the hook writes a new record only if the tool did not deny and did not error. The record holds this session and the current time. A Cancel never reaches this step, so the record keeps the other chat's name.</p>
+  <pre><code>    const ran = await next(e)
+    if (ran.deny === undefined &amp;&amp; ran.isError !== true) {
+      const touch: Touch = { session, at: await $.clock.now() }
+      await $.store.set(key, touch)
+    }
+
+    return ran</code></pre>
+
+  <div class="note"><strong>Why the store, not state.</strong> <code>$.store</code> is kept between sessions and hot reloads, so a record written in one chat is still there when a later chat checks. This mod never deletes a record.</div>
+
+  <h2>How to use it</h2>
+  <pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+claude plugin install collision-guard@waraxe-claude-mods</code></pre>
+  <p>The placeholder <code>&lt;owner&gt;/&lt;repo&gt;</code> is not filled in yet. The local marketplace folder has no git remote and no commits, so the real repository name is not known. The README and the source agree on the main behaviour. The README does not mention the fail-open case, or that only the latest editor is remembered.</p>
+
+  <ul class="steps">
+    <li>Run <code>/reload-plugins</code>, or start a new session.</li>
+    <li>There are no settings. The hook runs for every Edit and Write.</li>
+    <li>When the question appears, choose <strong>Proceed</strong> to make the edit, or <strong>Cancel</strong> to refuse it. Closing the question counts as Cancel.</li>
+    <li>Cost: no model calls and no tokens. Each Edit or Write does one store read. A successful one also does one store write.</li>
+  </ul>
+
+  <h3>Limits</h3>
+  <ul class="steps">
+    <li>Only Edit and Write are checked. A shell command that changes a file, such as <code>sed -i</code> or a redirect, is not seen.</li>
+    <li>It keeps one record per file: the last successful edit, from any chat. An earlier chat's record is replaced.</li>
+    <li>The key is the exact <code>file_path</code> text. Edit and Write take absolute paths, so the same file under another name, such as a symlink, is not matched.</li>
+    <li>The check and the record are two separate store calls. Two chats that edit one file at the same moment can both pass the check. Read from the code; not tested.</li>
+    <li>If you choose Other and type exactly <code>Proceed</code>, the hook reads it as Proceed. The types say typed text comes back as it was typed.</li>
+    <li>A <code>-p</code> run has no one to ask, so an edit that would be held is refused.</li>
+    <li>Nothing deletes old records. The types say the store refuses writes that take it past 4 MiB of JSON in total.</li>
+  </ul>
+
+  <h2>Check yourself</h2>
+
+  <details class="check">
+    <summary>Why does the hook return <code>{ deny }</code> on Cancel, rather than throwing?</summary>
+    <p>A deny is the documented refusal. The text goes back to the model as an error result, and the mod's message tells the model not to retry. A throw is a failed hook. The engine skips a failed hook and runs the tool, so a throw would let the edit through.</p>
+  </details>
+
+  <details class="check">
+    <summary>Chat A edits a file at 10:00. Chat B edits it at 10:05 and presses Proceed. Chat A edits it again at 10:10. What happens?</summary>
+    <p>Chat A is asked. B's successful edit at 10:05 replaced A's record, so the record now names chat B. That record is five minutes old, inside the 30-minute window, so the question appears.</p>
+  </details>
+
+  <details class="check">
+    <summary>Why is the record written after <code>next(e)</code>, not before?</summary>
+    <p>Because <code>next(e)</code> runs the permission prompt and then the tool itself. A record written first would mark the file as changed even when the person denied permission or the edit failed. The hook checks <code>ran.deny</code> and <code>ran.isError</code> before it writes.</p>
+  </details>
+
+  <h2>Go further</h2>
+  <ul>
+    <li>Main source: <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/collision-guard/hooks/register.ts">/Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/collision-guard/hooks/register.ts</a></li>
+    <li>API types for <code>tool.call</code>, <code>ToolCallResult</code>, <code>$.ui.ask</code>, <code>$.store</code> and <code>HookBudget</code>: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a></li>
+    <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  </ul>
+
+  <nav class="lesson-nav">
+  <a href="0015-screen-privacy.html">← 0015 Screen privacy</a>
+  <a href="../index.html">Index</a>
+  <a href="0017-session-monitor.html">0017 Session monitor →</a>
+</nav>
+
+  <p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

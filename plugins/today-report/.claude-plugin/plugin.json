@@ -1,0 +1,27 @@
+{
+  "name": "today-report",
+  "version": "0.1.0",
+  "description": "Today's Report: totals your Claude Code tasks, the time they would have taken you, and tokens by day, week, month and year, from your session logs",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "minutesPerTask": {
+      "type": "number",
+      "title": "Minutes per task",
+      "description": "How long a task would have taken you by hand. An estimate: set it to match your work.",
+      "default": 10,
+      "min": 1,
+      "max": 240
+    },
+    "hourlyRate": {
+      "type": "number",
+      "title": "Hourly rate",
+      "description": "Your hourly rate in dollars, for the value estimate.",
+      "default": 50,
+      "min": 0
+    }
+  }
+}

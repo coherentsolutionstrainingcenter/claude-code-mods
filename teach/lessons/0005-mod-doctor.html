@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0005: mod-doctor</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0005 · Mod</p>
+<h1>mod-doctor</h1>
+<p class="lede">Mod doctor runs the plugin validator on each enabled mod that has a folder, then flags failed checks, shared tool.call hooks and names that are enabled twice.</p>
+
+<dl class="meta">
+  <dt>Version</dt>
+  <dd>0.1.0</dd>
+  <dt>Folder</dt>
+  <dd><code>/Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/mod-doctor</code></dd>
+  <dt>Marketplace</dt>
+  <dd>waraxe-claude-mods</dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code> (registers the command), <code>command.run</code> (opens the pane and starts an audit), <code>ui.render</code> (draws the pane)</dd>
+  <dt>Calls</dt>
+  <dd><code>$.command.register</code>, <code>$.ui.open</code>, <code>$.ui.resolve</code>, <code>$.process.run</code>, <code>atom</code>, <code>read</code>, <code>update</code></dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>types/index.d.ts</code>, <code>README.md</code></dd>
+  <dt>Author and license</dt>
+  <dd>Igor Waraxe, MIT</dd>
+  <dt>Requires</dt>
+  <dd>The <code>claude</code> CLI on the PATH. The mod runs it by name.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>mod-doctor</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install mod-doctor@waraxe-claude-mods</code> · folder <a href="../../plugins/mod-doctor/">plugins/mod-doctor</a> · <a href="../../plugins/mod-doctor/INSTRUCTIONS.md">instructions</a><br>Needs: the claude command on the PATH.</div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Mod doctor adds a pane that you open with <code>/mod-doctor</code>. The pane reads your installed plugins from <code>claude plugin list</code>, then runs <code>claude plugin validate</code> on each enabled one that has a folder. It shows each verdict with the hook events and calls the plugin declares, and it raises three plain flags.</p>
+<p>Your <code>MISSION.md</code> asks you to name the hook events and calls each mod uses and to check a change with <code>claude plugin validate</code>, and this pane gives you both for every installed mod at once.</p>
+
+<h2>How it was built</h2>
+<p>The mod has one hooks module, <code>hooks/register.tsx</code>. <code>hooks/hooks.json</code> points to it, and <code>plugin.json</code> does not list hooks itself. The build has four parts.</p>
+
+<h3>1. List the plugins</h3>
+<p>The mod runs <code>$.process.run(['claude', 'plugin', 'list'], { timeoutMs: 60000 })</code> and parses the text it prints. A line such as <code>❯ name@marketplace</code> starts a row. The Version, Read from and Status lines fill in that row. Only a Read from line gives a folder. The Status line counts as enabled when it has the whole word <em>enabled</em> or <em>loaded</em>, so <em>disabled</em> does not match. If the list exits with a non-zero code, the audit stops and the pane shows up to 300 characters of the error output.</p>
+<pre><code>/** Reads the rows of `claude plugin list`. Only a "Read from:" line gives a folder. */
+function parseList(text: string): Installed[] {
+  const rows: Installed[] = []
+  let row: Installed | null = null
+
+  for (const line of text.split('\n')) {
+    const head = line.match(/^\s*❯ (\S+)\s*$/)
+    if (head) {
+      row = { id: head[1], version: '', enabled: false, folder: null }
+      rows.push(row)
+      continue
+    }
+
+    const field = line.match(/^\s+(Version|Read from|Status):\s*(.*?)\s*$/)
+    if (row === null || field === null) {
+      continue
+    }
+    if (field[1] === 'Version') {
+      row.version = field[2]
+    } else if (field[1] === 'Read from') {
+      row.folder = field[2]
+    } else {
+      row.enabled = /\b(enabled|loaded)\b/.test(field[2])
+    }
+  }
+
+  return rows
+}</code></pre>
+<div class="note"><strong>Why text, not --json.</strong>
+<p>The source does not say why it avoids the JSON form. It only says that a Read from line gives a folder. On this machine, the JSON <code>installPath</code> of an installed mod sat under <code>~/.claude/plugins/cache/</code>, while the text form's Read from line named the marketplace folder. That fits a cache copy being the wrong place to read from. I did not check a plugin installed from GitHub, so its paths may differ.</p></div>
+
+<h3>2. Validate each enabled plugin</h3>
+<p>For each enabled plugin with a folder, the mod runs <code>claude plugin validate</code> with the folder as one argument, so no shell reads the path. The run's stdout and stderr are joined, and the parsing reads that text. If the run throws, the check gets the verdict <code>unknown</code>, and the error message becomes its problem.</p>
+<pre><code>/** Runs the validator on one plugin folder. A run that cannot finish gives no verdict. */
+async function validateOne($: EngineInterface, id: string, version: string, folder: string): Promise&lt;Check&gt; {
+  try {
+    // The folder goes in as one argument, so no shell reads it.
+    const run = await $.process.run(['claude', 'plugin', 'validate', folder], { timeoutMs: 60000 })
+    const text = run.stdout + run.stderr
+
+    return { id, version, ...parseValidate(text), ...declared(text) }
+  } catch (error) {
+    const problem = error instanceof Error ? error.message : String(error)
+    return { id, version, verdict: 'unknown', warnings: 0, errors: 0, problem, hooks: [], calls: [] }
+  }
+}</code></pre>
+<p>Then <code>parseValidate</code> reads the verdict from the words <em>Validation failed</em> or <em>Validation passed</em>. It reads the warning and error counts from the lines that say <em>Found N warnings</em> or <em>Found N errors</em>. A separate function, <code>declared</code>, reads the <code>hooks:</code> and <code>calls:</code> lines.</p>
+<pre><code>/** Reads the verdict, the counts and the first error of one `claude plugin validate` run. */
+function parseValidate(text: string): Pick&lt;Check, 'verdict' | 'warnings' | 'errors' | 'problem'&gt; {
+  // Match the words after the status symbol, not the symbol itself.
+  const verdict = /^[^\w\n]*Validation failed\s*$/m.test(text)
+    ? 'failed'
+    : /^[^\w\n]*Validation passed/m.test(text)
+      ? 'passed'
+      : 'unknown'
+  const warnings = Number(text.match(/^[^\w\n]*Found (\d+) warnings?:/m)?.[1] ?? 0)
+  const errors = Number(text.match(/^[^\w\n]*Found (\d+) errors?:/m)?.[1] ?? 0)
+  // The directory's own findings are left out: they do not change the verdict.
+  const problem =
+    text.match(/^[^\w\n]*Found \d+ errors?:[\s\S]*?^\s*❯ (.+)$/m)?.[1] ??
+    (verdict === 'unknown' ? 'no verdict from the validator' : '')
+
+  return { verdict, warnings, errors, problem }
+}</code></pre>
+<div class="note"><strong>Not confirmed.</strong>
+<p>These are regular expressions over the validator's printed text. They assume the wording the validator uses today. I did not run the validator on this mod, so that wording is unchecked. A live run would confirm it.</p></div>
+
+<h3>3. The flags</h3>
+<p>Three checks raise flags, in plain words:</p>
+<ul>
+  <li>A check whose verdict is not <code>passed</code> gets a red line, <em>did not pass validation</em>, with the problem after it. That includes a check with no verdict.</li>
+  <li>Two or more enabled plugins with a <code>tool.call</code> hook get a yellow note. The event name is the text before any <code>{</code>, so a matcher does not hide it.</li>
+  <li>One name enabled under two or more marketplaces gets a yellow note.</li>
+</ul>
+<pre><code>  for (const check of checks) {
+    if (check.verdict !== 'passed') {
+      const reason = check.problem ? `: ${check.problem}` : ''
+      flags.push({ text: `${check.id} did not pass validation${reason}`, severity: 'fail' })
+    }
+  }
+
+  const hookers = checks
+    .filter(check =&gt; check.hooks.some(hook =&gt; hook.split('{')[0] === 'tool.call'))
+    .map(check =&gt; check.id)
+  if (hookers.length &gt;= 2) {
+    flags.push({
+      text: `${hookers.length} enabled plugins hook tool.call, and their order matters: ${hookers.join(', ')}`,
+      severity: 'note',
+    })
+  }</code></pre>
+<div class="note"><strong>Why the order matters.</strong>
+<p>The note says the order of <code>tool.call</code> hooks matters. The engine's types say the chain's tiers nest, outermost first, and that same-event hooks "nest in this order and no other way". That supports the note. I checked it against those type comments only. I did not run two hooks to see the effect.</p></div>
+
+<h3>4. The pane and the Refresh button</h3>
+<p>The <code>command.run</code> hook for <code>mod-doctor</code> opens the pane with the id <code>mod-doctor</code>, starts the audit, and returns the text <em>Mod doctor opened.</em> It does not wait for the audit. The <code>ui.render</code> hook for the <code>Pane</code> component draws the pane from a state atom. That atom holds a <code>status</code> (<code>idle</code>, <code>reading</code>, <code>ready</code> or <code>failed</code>), any error, and the audit result. The audit writes the state with <code>update</code>. The Refresh button calls the audit again. While a run is reading, the button says <em>Auditing…</em>, and the audit returns at once. That is the one-run guard:</p>
+<pre><code>/** Lists the plugins, validates each enabled one with a folder, and stores the findings. One run at a time. */
+async function audit($: EngineInterface): Promise&lt;void&gt; {
+  const current = await read($, view)
+  if (current.status === 'reading') {
+    return
+  }
+  await update($, view, v =&gt; ({ ...v, status: 'reading', error: '' }))</code></pre>
+<div class="note"><strong>The guard is not atomic.</strong>
+<p>The guard reads the state, checks it, and then writes <em>reading</em>. Those are separate awaits. Two presses that both read <em>idle</em> before either write could both start a run. The engine's <code>update</code> retries when the version has changed, but that protects the write, not the check before it. The likely effect is two runs, each writing a full result. The source does not fix this, and I did not change it.</p></div>
+
+<h2>How to use it</h2>
+<p>Install it from the marketplace. Replace <code>&lt;owner&gt;/&lt;repo&gt;</code> with the GitHub repository that holds the marketplace. The marketplace folder has no git remote, so I could not fill it in.</p>
+<pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+claude plugin install mod-doctor@waraxe-claude-mods</code></pre>
+<ul class="steps">
+  <li>Type <code>/mod-doctor</code>. The handler ignores any arguments. The pane opens and the audit starts.</li>
+  <li>Read the summary line: installed, enabled, validated, and the time of the check. Then read the flags. Red lines are failures. Yellow lines are notes.</li>
+  <li>Read each validated plugin. Its line has a tick for a pass, a cross for a fail, or a question mark for no verdict, then its id, version and verdict. Under it are its hooks and its calls.</li>
+  <li>Read the footer. It lists enabled plugins with no folder, and disabled plugins. A disabled plugin appears in the disabled line even when it has no folder.</li>
+  <li>Press Refresh to run the audit again.</li>
+</ul>
+<p><strong>What it costs.</strong> The mod's own code makes no model calls. An audit runs <code>claude plugin list</code> once, then <code>claude plugin validate</code> once for each enabled plugin with a folder. On the machine I checked, 14 enabled plugins had a folder, so one audit made 15 runs. Each run has a 60-second limit.</p>
+<div class="note"><strong>Where the README and the source differ.</strong>
+<ul>
+  <li>The README says the pane shows each plugin's warnings and errors. The source shows the error count only on a failed check, and the warning count only on a passed one.</li>
+  <li>The README says a plugin that fails validation is flagged. The source also flags a check with no verdict, with the same red line.</li>
+  <li>The README says an audit takes a few seconds per enabled mod. The source sets a 60-second limit per run and does not measure time, so I could not confirm the figure.</li>
+  <li>The README says the audit runs only read-only commands. The source runs two <code>claude plugin</code> commands and does not show what they do, so I could not confirm that.</li>
+</ul></div>
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>The validator checks structure and the calls a module declares. It does not check behaviour. A pass does not show that a mod works, and the pane's last line says so.</li>
+  <li>The verdict depends on the validator's wording. If that wording changes, the parsing can miss it.</li>
+  <li>I did not install mod-doctor, enable it, or open its pane. The mod has not been tested in a live session.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does mod-doctor read the text of <code>claude plugin list</code> instead of its JSON?</summary>
+  <p>The source treats only a <em>Read from</em> line as the folder, and it does not explain the choice. On the machine I checked, the JSON <code>installPath</code> pointed into the plugin cache, while the text form named the source folder.</p>
+</details>
+<details class="check">
+  <summary>A validator run throws an error. What does the pane show, and does it raise a flag?</summary>
+  <p>The check gets the verdict <code>unknown</code>. The pane shows a question mark and the words "no verdict". The flags also add a red line, "did not pass validation", with the error text after it.</p>
+</details>
+<details class="check">
+  <summary>A plugin shows a tick and no flags. Does that mean the mod works?</summary>
+  <p>No. The validator checks the manifest structure and the calls the module declares. It does not run the mod or test what it does.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/mod-doctor/hooks/register.tsx">Main source: hooks/register.tsx</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">Engine API types: claude-code.d.ts</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0004-mods-manager.html">← 0004 Mods manager</a>
+  <a href="../index.html">Index</a>
+  <a href="0006-effort-picker.html">0006 Effort picker →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

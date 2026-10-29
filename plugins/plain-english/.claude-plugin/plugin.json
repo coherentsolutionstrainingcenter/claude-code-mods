@@ -1,0 +1,10 @@
+{
+  "name": "plain-english",
+  "version": "0.1.0",
+  "description": "While on, rewrites each long reply in plain language with a short Next steps list, in a side pane, and leaves Claude's reply unchanged",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,17 @@
+{
+  "name": "spend-guard",
+  "version": "0.1.0",
+  "description": "Asks Proceed or Cancel, with a short checklist, before a command or MCP tool that costs money or publishes runs",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT",
+  "userConfig": {
+    "extraPatterns": {
+      "type": "string",
+      "title": "Your own patterns",
+      "description": "Comma-separated text to hold as well. Each is matched, ignoring case, inside a Bash command and inside every tool name. Example: fly deploy, stripe, mcp__replicate",
+      "default": ""
+    }
+  }
+}

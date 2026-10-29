@@ -1,0 +1,9 @@
+{
+  "name": "narrator",
+  "version": "0.1.0",
+  "description": "Reads the last 240 characters of each finished reply aloud with macOS say, off by default and switched with /narrator on and /narrator off",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT"
+}

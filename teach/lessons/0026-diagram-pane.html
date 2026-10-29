@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0026: Diagram pane</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0026 · Diagram pane</p>
+<h1>Diagram pane</h1>
+<p class="lede">Diagram pane opens a side pane that pins each diagram Claude draws, and keeps a live map of the files and steps in the work.</p>
+
+<dl class="meta">
+  <dt>Best version</dt>
+  <dd>diagram-pane (36), version 0.2.6 by Ray Amjad. Source: <a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/diagram-pane">ray-amjad/claude-code-mods</a></dd>
+  <dt>Status</dt>
+  <dd>Cloned. <a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/diagram-pane">Local copy in the scratchpad</a>. FAMILIES.md calls it a local clone.</dd>
+  <dt>Variants</dt>
+  <dd>36 only. FAMILIES.md lists no other IDs for this family.</dd>
+  <dt>Files</dt>
+  <dd><code>hooks/register.js</code> (833 lines, the main module), <code>hooks/draw.js</code> (356 lines), <code>hooks/graph.js</code> (207 lines), <code>hooks/hooks.json</code>, <code>.claude-plugin/plugin.json</code>, <code>README.md</code>, <code>tests/</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code>, <code>turn.complete</code>, <code>command.run</code> (for <code>/diagram</code>), <code>tool.call</code> (for <code>diagram_get</code> and <code>diagram_set</code>), <code>ui.render</code> (for the <code>Pane</code>)</dd>
+  <dt>Calls</dt>
+  <dd><code>$.model.complete</code> (the Haiku gate), <code>$.model.fork</code> (the map and the boxes' details), <code>$.session.messages</code>, <code>$.session.id</code>, <code>$.store.get</code> and <code>$.store.set</code>, <code>$.ui.open</code>, <code>$.ui.panes</code>, <code>$.ui.focus</code>, <code>$.ui.invalidate</code>, <code>$.ui.resolve</code>, <code>$.ui.log</code>, <code>$.tool.register</code>, <code>$.command.register</code>, <code>$.env.get</code>, <code>$.clock.now</code>, <code>$.fs.write</code></dd>
+  <dt>Author and license</dt>
+  <dd>Ray Amjad, MIT</dd>
+  <dt>Requires</dt>
+  <dd>An interactive Claude Code session. It does nothing in <code>-p</code> or SDK sessions, unless one of two test variables, <code>DIAGRAM_PANE_SYNC</code> or <code>DIAGRAM_PANE_DUMP</code>, is set.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>diagram-pane</code> 0.2.6, by Ray Amjad, MIT · upstream <a href="https://github.com/ray-amjad/claude-code-mods">https://github.com/ray-amjad/claude-code-mods</a>.<br>Install: <code>claude plugin install diagram-pane@waraxe-claude-mods</code> · folder <a href="../../plugins/diagram-pane/">plugins/diagram-pane</a> · <a href="../../plugins/diagram-pane/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Diagram pane is a side pane that pins each mermaid chart or ASCII box diagram in Claude's replies. It also keeps a small map of the files and steps in the work, and a cheap check decides when to redraw it.</p>
+<p>For your mission, which asks you to say why each hook and call is used, this mod is the clearest example here of one that calls the model and keeps state, so it shows where a call goes and where the saved state lives.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>36</td>
+      <td>diagram-pane (best version)</td>
+      <td>Pins each diagram, keeps a live work map, and lets you open boxes and change them.</td>
+      <td>Cloned from <a href="https://github.com/ray-amjad/claude-code-mods">ray-amjad/claude-code-mods</a>. Local copy in the scratchpad.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The mod is one hooks module, <code>hooks/register.js</code>. <code>hooks/hooks.json</code> names it. <code>draw.js</code> lays out the charts and the map, and <code>graph.js</code> holds the tree of boxes. The six steps below follow the main module from start to finish. Each snippet is copied from <code>register.js</code>, and the line numbers tell you where it sits.</p>
+
+<h3>1. Open the pane and register the command and tools (lines 70 to 90)</h3>
+<p>On <code>session.start</code>, the mod opens the pane with <code>$.ui.open</code>. It registers <code>/diagram</code> with <code>$.command.register</code>, and registers the two tools for Claude with <code>$.tool.register</code>. In a headless session, the handler returns at once and draws nothing.</p>
+<pre><code>  on('session.start', async ($, e, next) =&gt; {
+    // Set at each session.start. In -p / SDK sessions there is no pane to draw into
+    headless = e.isInteractive === false
+    if (headless) return next(e)
+    // Open the pane right away. Unasked, it is placed on a wide terminal (144+ columns);
+    // /diagram opens it at any width.
+    await $.ui.open({ id: PANE, title: 'Diagrams' })
+    try {
+      await $.command.register({ name: 'diagram', description: 'Redraw the live work map in the diagram pane', argumentHint: '[force|open]' })
+    } catch (err) {
+      $.ui.log('could not add /diagram: ' + err.message)
+    }
+    for (const tool of TOOLS) {
+      try {
+        await $.tool.register(tool)
+      } catch (err) {
+        $.ui.log(`could not add ${tool.name}: ` + err.message)
+      }
+    }
+    return next(e)
+  })</code></pre>
+
+<h3>2. Pin diagrams and count turns (lines 93 to 109)</h3>
+<p>On <code>turn.complete</code>, the mod skips subagent turns and aborted turns. Then it reads the transcript through <code>sync</code>. The README says new diagrams are pinned at this point. The mod counts turns in <code>S.sinceMap</code>. When the count reaches <code>everyTurns</code> (3 by default), it runs the gate. The environment variable <code>DIAGRAM_PANE_EVERY</code> overrides the count for one session.</p>
+<pre><code>  on('turn.complete', async ($, e, next) =&gt; {
+    const result = await next(e)
+    // Headless: no pane, so skip, unless DIAGRAM_PANE_SYNC or DIAGRAM_PANE_DUMP asks for the work
+    const asked = (await $.env.get('DIAGRAM_PANE_SYNC')) || (await $.env.get('DIAGRAM_PANE_DUMP'))
+    if ((headless &amp;&amp; !asked) || e.agentId || e.isAborted) return result
+    const messages = await sync($)
+    S.sinceMap += 1
+    if (!headless &amp;&amp; S.pins.length &amp;&amp; !(await $.ui.panes()).some(p =&gt; p.id === PANE)) await $.ui.open({ id: PANE, title: 'Diagrams' })
+    S.every = Number(await $.env.get('DIAGRAM_PANE_EVERY')) || every
+    if (S.sinceMap &gt;= S.every || overdue()) {
+      const work = overdue() ? catchUp($, messages) : refreshMap($, messages, false)
+      // Headless runs exit when the hook returns, so tests can ask us to wait
+      if (await $.env.get('DIAGRAM_PANE_SYNC')) await work
+    }
+    await redraw($)
+    return result
+  })</code></pre>
+
+<h3>3. Ask Haiku whether the work changed shape (lines 249 to 263)</h3>
+<p>Before a redraw, the mod asks a cheap question. <code>$.model.complete</code> is sent to <code>haiku</code> with the current map, the files touched since, and a digest of the activity. It sets <code>maxTokens: 5</code>, so only a short answer comes back. The gate runs only when a map already exists and <code>/diagram force</code> was not used.</p>
+<pre><code>    // 1. The cheap gate: skipped only when there is no map yet, or on /diagram force
+    if (S.map &amp;&amp; !force) {
+      S.note = 'gate: checking if the work changed shape...'
+      await redraw($)
+      const activity = messages.slice(S.mapAt)
+      const gate = await $.model.complete({
+        model: 'haiku',
+        system: GATE_SYSTEM,
+        prompt: `CURRENT MAP: ${mapSummary()}\n\nFILES TOUCHED SINCE, NOT ON THE MAP: ${newFiles(activity).join(', ') || 'none'}\n\n` +
+          `ACTIVITY SINCE THE MAP WAS DRAWN:\n${digest(activity)}\n\n` +
+          'Answer YES if the map is now out of date: the work touched files or components the map lacks, added a step ' +
+          '(such as tests, a new feature, a fix), or moved to a different task. Answer NO only if the map still shows the work. YES or NO?',
+        maxTokens: 5,
+        timeoutMs: 20000,
+      })</code></pre>
+
+<h3>4. Fork the session to draw the map (lines 271 to 278)</h3>
+<p>After a yes from the gate, the mod forks the session. The gate is skipped for the first map and for <code>/diagram force</code>, so the fork runs then too. <code>$.model.fork</code> asks the session itself for the map as JSON. A fork sees the whole conversation, but it cannot call tools, so the map holds only what the session has seen. If <code>/clear</code> ran while the fork was working, the generation check on line 278 drops the result.</p>
+<pre><code>    // 2. The fork: the session's own context, asked for JSON. It cannot call tools.
+    // /diagram force draws from scratch; otherwise the fork builds on the current map.
+    const base = force ? null : S.map
+    const edits = S.mapEdits
+    S.note = 'fork: drawing the work map...'
+    await redraw($)
+    const r = await $.model.fork({ prompt: FORK_PROMPT + (base ? basePrompt(base) : '') })
+    if (gen !== S.gen) return // /clear ran meanwhile: this map is the old session's</code></pre>
+
+<h3>5. Save the map in the store (lines 339 to 347)</h3>
+<p>The map, the edited pins and the view are saved per session, under the key <code>maps</code>, in <code>$.store</code>. The mod keeps only the 20 newest sessions. That is how the map survives a hot reload or <code>--resume</code>. The matching reader, <code>loadSaved</code>, is on lines 329 to 337.</p>
+<pre><code>async function saveSaved($) {
+  if (S.sessionId === null) return
+  const maps = (await $.store.get('maps')) || {}
+  // Edits of pins that fell off the pane are no longer needed
+  const edits = Object.fromEntries(Object.entries(S.edits).filter(([code]) =&gt; pinOf(code)))
+  maps[S.sessionId] = { map: S.map, mapAt: S.mapAt, edits, view: S.view, at: await $.clock.now() }
+  // Keep the 20 newest sessions only
+  const keep = Object.entries(maps).sort((a, b) =&gt; b[1].at - a[1].at).slice(0, 20)
+  await $.store.set('maps', Object.fromEntries(keep))</code></pre>
+
+<h3>6. Let Claude read and change the pane (lines 135 to 146)</h3>
+<p>Claude has two tools. <code>diagram_get</code> returns the current map as mermaid. <code>diagram_set</code> changes one level of the map, or a pinned diagram. Each call syncs the transcript first. If <code>diagram_set</code> fails, the mod returns a deny message, and the pane is left as it was.</p>
+<pre><code>  on('tool.call', { tool: TOOL_SET }, async ($, e) =&gt; {
+    try {
+      await sync($)
+      const text = setDiagram(resolveTarget(String(e.target || 'view')), e)
+      await saveSaved($)
+      if (!(await $.ui.panes()).some(p =&gt; p.id === PANE)) await $.ui.open({ id: PANE, title: 'Diagrams' })
+      await redraw($)
+      return { result: text }
+    } catch (err) {
+      return { deny: 'diagram_set: ' + err.message }
+    }
+  }).catch(() =&gt; ({ deny: 'diagram_set failed; the pane is unchanged.' }))</code></pre>
+
+<h2>How to use it</h2>
+<p>The marketplace is named <code>claude-code-mods</code>, which is the name in its <code>marketplace.json</code>. Run these in the shell:</p>
+
+<pre><code class="language-bash">claude plugin marketplace add ray-amjad/claude-code-mods
+claude plugin install diagram-pane@claude-code-mods</code></pre>
+
+<ul class="steps">
+  <li>Start Claude in a terminal. The pane opens by itself in a terminal 144 columns or wider. Narrower than that, type <code>/diagram</code> once.</li>
+  <li>Ask for a diagram, such as "explain the checkout flow with a mermaid flowchart". It is pinned when the turn ends.</li>
+  <li><code>/diagram</code> runs the gate now and redraws the map if the work changed. <code>/diagram force</code> redraws the map from scratch and drops your edits. <code>/diagram open</code> gives the pane the keyboard.</li>
+  <li>Press a number to open a box, <code>b</code> to go back, and <code>t</code> to go to the top. Press <code>c</code> to type a change into the field under a diagram.</li>
+  <li>Settings: <code>everyTurns</code> (default 3) and <code>maxPins</code> (default 5). Change them with <code>/plugin configure diagram-pane@claude-code-mods</code>.</li>
+</ul>
+
+<p><strong>What it costs.</strong> Every few turns, one Haiku call with a five-token limit. A fork of the session runs when the gate says yes, and for the first map or <code>/diagram force</code>, which skip the gate. The README says a fork is mostly served from the prompt cache.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>Only mermaid <code>graph</code> and <code>flowchart</code> charts are redrawn. Other chart types are pinned as raw code.</li>
+  <li>Number keys reach the first nine boxes of a level. Tab or a click reaches the rest.</li>
+  <li>A fork cannot call tools, so a box's detail holds only what the session has already seen.</li>
+  <li>The map check runs after a turn ends, not while Claude is working.</li>
+  <li>The map is saved per install. Reinstalling the plugin, or moving it to another marketplace, starts with no saved maps.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>When does diagram-pane call the model, and which call is the bigger one?</summary>
+  <p>After every few turns (<code>everyTurns</code>, default 3), it makes a short Haiku gate call with <code>$.model.complete</code>. A yes from the gate leads to <code>$.model.fork</code>. So do the first map and <code>/diagram force</code>, which skip the gate. The fork is the bigger call, because it sees the whole conversation.</p>
+</details>
+<details class="check">
+  <summary>Where does the map go when you come back with <code>--resume</code>?</summary>
+  <p>It is saved under the key <code>maps</code> in <code>$.store</code>, keyed by session id. The mod keeps the 20 newest sessions, and the mod reads it back with <code>loadSaved</code>.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/ray-amjad/claude-code-mods/blob/main/plugins/diagram-pane/hooks/register.js">Main source: hooks/register.js</a></li>
+  <li><a href="https://github.com/ray-amjad/claude-code-mods/blob/main/plugins/diagram-pane/README.md">The plugin's README</a></li>
+  <li><a href="https://github.com/ray-amjad/claude-code-mods">The repository on GitHub</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0025-human-in-the-loop.html">← 0025 Human in the loop</a>
+  <a href="../index.html">Index</a>
+  <a href="0027-decision-tree.html">0027 Decision tree →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

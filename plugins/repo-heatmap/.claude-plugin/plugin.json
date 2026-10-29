@@ -1,0 +1,10 @@
+{
+  "name": "repo-heatmap",
+  "version": "0.1.0",
+  "description": "A /heatmap pane that counts this repository's tracked files by top-level folder and kind, from git ls-files, as rows of colored bars",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "time-lapse",
+  "version": "0.1.0",
+  "description": "Time-lapse: records your session's prompts, tool calls and turn times, and replays them as an animated HTML page",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT"
+}

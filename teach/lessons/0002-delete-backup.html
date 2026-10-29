@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0002: delete-backup</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0002 · Mod</p>
+<h1>delete-backup</h1>
+<p class="lede">delete-backup copies the files an rm is about to delete into a backup folder first, so /undo-delete can put the newest deletion back.</p>
+
+<dl class="meta">
+  <dt>Version</dt><dd>0.1.0</dd>
+  <dt>Folder</dt><dd>/Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/delete-backup</dd>
+  <dt>Marketplace</dt><dd>waraxe-claude-mods</dd>
+  <dt>Hooks</dt><dd><code>session.start</code> (registers the command), <code>tool.call</code> filtered to <code>Bash</code> (backs up an rm, or denies it), <code>command.run</code> filtered to <code>undo-delete</code> (restores). Declared in <code>hooks/hooks.json</code>, which names <code>./register.ts</code> as its only module.</dd>
+  <dt>Calls</dt><dd><code>$.command.register</code>, <code>$.session.id</code>, <code>$.session.cwd</code>, <code>$.store.get</code>, <code>$.store.set</code>, <code>$.process.run</code>, <code>$.clock.now</code>, <code>$.fs.write</code>, <code>$.fs.read</code>, <code>$.fs.list</code>, <code>$.fs.exists</code>, <code>$.env.get</code></dd>
+  <dt>Files</dt><dd>In the mod: <code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.ts</code>, <code>README.md</code>. At run time it writes to <code>~/.claude/delete-backup/&lt;time&gt;/</code>.</dd>
+  <dt>Author and license</dt><dd>Igor Waraxe, MIT</dd>
+  <dt>Requires</dt><dd><code>bash</code>, <code>cp</code>, <code>mkdir</code> and <code>rm</code> on the machine, and a <code>HOME</code> variable. Written against the API in <code>claude-code.d.ts</code>, which Claude Code 2.1.308 wrote.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>delete-backup</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install delete-backup@waraxe-claude-mods</code> · folder <a href="../../plugins/delete-backup/">plugins/delete-backup</a> · <a href="../../plugins/delete-backup/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>delete-backup is a Claude Code mod that watches Bash calls and adds one slash command, <code>/undo-delete</code>. Before a Bash command runs <code>rm</code>, it copies each target that exists into a time-stamped backup folder, and only then lets the command run. <code>/undo-delete</code> puts the newest complete backup back at its original paths, and it never writes over a path that is already in use.</p>
+<p>It matters for your mission because MISSION.md asks you to point to the hook events and API calls each mod uses and say why, and this mod is small enough to trace all the way through.</p>
+
+<h2>How it was built</h2>
+<p>The whole mod is one hooks file, <code>register.ts</code>, about 500 lines. The steps below follow the order the code runs in.</p>
+
+<h3>1. Hook Bash and read the command as tokens</h3>
+<p>The hook runs on every Bash call, but it only needs to act when a command could delete something or move the shell's folder. So it first looks for the words <code>rm</code>, <code>cd</code> or one of the folder words. If none is there, it returns <code>next(e)</code> and the call goes ahead untouched.</p>
+<pre><code>  on('tool.call', { tool: 'Bash' }, async ($, e, next) =&gt; {
+    const tokens = tokenize(e.command)
+    if (!tokens.some(t =&gt; t.kind === 'word' &amp;&amp; (t.text === 'rm' || t.text === 'cd' || FOLDER_WORDS.has(t.text)))) {
+      return next(e)
+    }</code></pre>
+<p>The check runs on tokens, not on the raw text. A small tokenizer splits the command into words, operators and substitution markers. It keeps quoted text as one word. A <code>$(</code> or a backtick is marked wherever it appears, even inside single quotes where the shell would not run it. That is the cautious side.</p>
+<p>Why not search the text for <code>rm</code>? A search would also match a quoted commit message, a path such as <code>./rm</code>, or <code>echo rm</code>. It also could not tell where one command ends. Tokens show which word starts each command, and the hook only reads that word.</p>
+<pre><code>    let op: string | undefined
+    if (c === '\n' || c === ';') op = ';'
+    else if (c === '&amp;' &amp;&amp; next === '&amp;') op = '&amp;&amp;'
+    else if (c === '|' &amp;&amp; next === '|') op = '||'
+    else if (c === '|') op = '|'
+    else if (c === '&amp;' &amp;&amp; next !== '&gt;' &amp;&amp; command[i - 1] !== '&gt;' &amp;&amp; command[i - 1] !== '&lt;') op = '&amp;'
+    else if (c === '(' || c === ')') op = c
+    else if ((c === '{' || c === '}') &amp;&amp; !inWord &amp;&amp; (next === undefined || /[\s;&amp;|()]/.test(next))) op = c
+
+    if (op !== undefined) {
+      endWord()
+      out.push({ kind: 'op', text: op })
+      if (op === '&amp;&amp;' || op === '||') i++
+      continue
+    }</code></pre>
+<div class="note"><strong>A failing guard is denied, not skipped.</strong> The engine skips a hook that throws, so an unguarded failure would let the command run. This hook ends with a <code>.catch</code>. If it fails before it calls <code>next</code>, the Bash call is denied. If it fails after <code>next</code> has run the command, the catch returns that result and does not run the command again.</div>
+
+<h3>2. Follow the shell's folder across calls with $.store</h3>
+<p>The hook does not read the Bash shell's folder. It follows each <code>cd</code> itself, and it keeps the result in <code>$.store</code>, the plugin's own JSON store. The key is <code>folder:</code> followed by the session id and the agent id, so a subagent has its own folder. A call with no saved key starts at <code>$.session.cwd()</code>. A saved <code>null</code> means the folder is unknown.</p>
+<pre><code>    // The folder the Bash shell is in is kept per session, so a cd in one call holds for the next.
+    const key = `folder:${await $.session.id()}:${e.agentId ?? 'main'}`
+    let walk: Walk
+    try {
+      const stored = (await $.store.get(key)) as { folder: string | null } | undefined
+      const start = stored === undefined ? await $.session.cwd() : (stored.folder ?? undefined)
+      walk = await follow($, tokens, start)
+      const held = holdReason(walk)
+      if (held !== undefined) {
+        return { deny: held }
+      }
+      await backUp($, walk.jobs, e.command)
+    } catch (error) {
+      return { deny: `delete-backup held this command: ${reason(error)}. Nothing was deleted.` }
+    }
+
+    const ran = await next(e)
+    if (ran.deny === undefined) {
+      await $.store.set(key, { folder: walk.folder ?? null })
+    }
+    return ran</code></pre>
+<p>The function <code>follow</code> walks the command in order. Each <code>cd</code> runs in a bash process, which shows whether it worked and prints the physical folder with <code>pwd -P</code>. Each possible folder is kept as a state with a status: <code>ok</code>, <code>fail</code> or <code>unknown</code>. A failed <code>cd</code> leaves the folder where it was. Every other command is <code>unknown</code>, because the hook does not know its exit code. After <code>&amp;&amp;</code> a unit runs only in <code>ok</code> states. After <code>||</code> it runs only in <code>fail</code> states. An <code>unknown</code> state splits into both. Past 16 states, the folder becomes unknown.</p>
+<p>The saved folder is written only when the call was not denied. A denied call did not run, so the shell did not move.</p>
+<p>The hook denies the whole Bash call when an rm would run in a folder it cannot name. The reasons are checked in <code>jobWhy</code>:</p>
+<pre><code>function jobWhy(job: Job, walk: Walk): string | undefined {
+  if (walk.grouped) return 'the command has a subshell or grouping'
+  if (walk.cdMinus) return 'the command has cd -'
+  if (job.subst) return 'the rm has a $( or a backtick'
+  if (job.targets.some(target =&gt; target.includes('$'))) return 'an rm target has a $'
+  if (job.folders.length &gt; 1) return 'the rm may run in more than one folder'
+  if (job.folders[0] === undefined) return 'the working folder is unknown (run cd with an absolute path to set it)'
+  return undefined
+}</code></pre>
+<ul>
+  <li><strong>Subshells and groups.</strong> The walk handles a <code>( )</code> subshell only roughly, and treats a <code>{ }</code> group as a plain separator. So a command with either one is refused when it has an rm. A <code>$(</code> counts too, because its parenthesis is an operator.</li>
+  <li><strong><code>cd -</code>.</strong> The previous folder is not tracked.</li>
+  <li><strong>Substitution and <code>$</code>.</strong> A <code>$(</code> or backtick in the rm, or a <code>$</code> in its target, would need the shell to expand it.</li>
+  <li><strong>More than one folder.</strong> After <code>make &amp;&amp; cd build</code>, the rm may run in either folder.</li>
+  <li><strong>Unknown folder.</strong> A <code>cd</code> with a <code>$</code>, a backtick or a <code>~user</code> path makes the folder unknown. So does a relative <code>cd</code> when the folder is already unknown. A pipe or <code>&amp;</code> in the command makes any <code>cd</code> unknown, because that <code>cd</code> may run in a subshell.</li>
+</ul>
+<p>Why refuse rather than guess? A wrong folder means the backup copies the wrong files, or none, while the rm deletes the real ones. The reason text says nothing was deleted. That holds because the call is stopped before it runs.</p>
+<div class="warn"><strong>A gap the README does not mention.</strong> The walk reads only the first word of each command, after an optional <code>sudo</code>. Words that open a compound command hide the command after them. They are <code>do</code>, <code>then</code>, <code>else</code>, <code>elif</code>, <code>while</code>, <code>until</code>, <code>time</code> and <code>!</code>. In <code>if [ -d build ]; then cd build &amp;&amp; rm -rf dist; fi</code> the <code>cd</code> is not seen, so the rm is checked in the wrong folder, and the files it really deletes are not copied. In <code>for f in a; do rm "$f"; done</code> the rm is neither backed up nor denied. I found this by reading the code. I did not run it.</div>
+
+<h3>3. Find the targets that exist</h3>
+<p>For each rm, the hook runs a bash process in the folder the rm would run in. The process runs the RESOLVE script and prints only the targets that exist. The script expands <code>~</code> and globs. <code>IFS</code> is cleared, so a name with a space stays whole. Relative paths are made absolute from <code>$PWD</code>. A path is kept when <code>-e</code> or <code>-L</code> is true, so a broken symlink still counts. The output is NUL-separated, which keeps odd file names intact.</p>
+<pre><code>const RESOLVE = [
+  'shopt -s nullglob',
+  'for t in "$@"; do',
+  '  case "$t" in "~") t=$HOME ;; "~/"*) t="$HOME/${t#"~/"}" ;; esac',
+  '  IFS=',
+  '  for p in $t; do',
+  '    case "$p" in /*) ;; *) p="$PWD/$p" ;; esac',
+  '    case "$p" in */.|*/..) continue ;; esac',
+  "    if [ -e \"$p\" ] || [ -L \"$p\" ]; then printf '%s\\0' \"$p\"; fi",
+  '  done',
+  'done',
+].join('\n')</code></pre>
+<p>The targets are passed as arguments, after the script text. The script reads them as <code>"$@"</code>, so they are only data. They are never pasted into the script. A quote or a <code>;</code> in a file name therefore cannot change what the script does.</p>
+<pre><code>async function existing($: EngineInterface, job: Job): Promise&lt;string[]&gt; {
+  const ran = await $.process.run(['bash', '-c', RESOLVE, 'delete-backup', ...job.targets], { cwd: job.folders[0] })
+  if (ran.exitCode !== 0) {
+    throw new Error(`could not read the rm targets: ${ran.stderr.trim()}`)
+  }
+  // A cut list would leave some targets without a backup.
+  if (ran.isStdoutTruncated) {
+    throw new Error('the rm targets match too many paths to list')
+  }
+  return ran.stdout
+    .split('\0')
+    .filter(path =&gt; path !== '')
+    .map(trimSlash)
+}</code></pre>
+<div class="note"><strong>Three edge cases from the code.</strong> (1) The skip for <code>.</code> and <code>..</code> only matches paths that end in <code>/.</code> or <code>/..</code>. A target of <code>./</code> or <code>../</code> is not skipped. After the trailing slash is trimmed, <code>./</code> copies the folder the rm runs in, and <code>../</code> copies its parent. (2) RESOLVE and CD set no <code>timeoutMs</code>, so the 30-second default applies to them. (3) Output is capped at 4 MiB. If the list of targets is cut (<code>isStdoutTruncated</code>), the hook refuses the delete rather than back up only part of it. (4) Shell keywords such as <code>if</code>, <code>then</code>, <code>do</code> and <code>else</code> are skipped, so <code>then rm -rf build</code> still counts as an rm. A <code>cd</code> after a keyword may sit in a branch that does not run, so it makes the folder unknown, and a later relative rm is refused. Points (3) and (4) were fixed after this page was first written. They were checked with Node against real bash, but the mod has not run in a live session.</div>
+
+<h3>4. Copy each target before the rm runs</h3>
+<p><code>backUp</code> runs after the walk and before <code>next(e)</code>, so the copies exist before anything is deleted. First it drops duplicates. It also drops any target that sits inside another target, so <code>build</code> and <code>build/dist</code> give one copy of <code>build</code>. It makes one folder named by the time, with colons and dots changed to dashes. Then it copies each target with <code>cp -Rp</code>, which copies folders recursively and keeps modes and times. Each item gets a number in front of its name, so two files with the same name do not clash. Each copy is its own process with a ten-minute limit.</p>
+<pre><code>  const now = await $.clock.now()
+  const folder = `${await backupRoot($)}/${stamp(now)}`
+  const made = await attempt($, ['mkdir', '-p', folder])
+  if (made !== undefined) {
+    throw new Error(`could not create ${folder}: ${made}`)
+  }
+
+  const items: Item[] = []
+  for (const [index, original] of found.entries()) {
+    const backup = `${index + 1}-${nameOf(original)}`
+    const copied = await attempt($, ['cp', '-Rp', original, `${folder}/${backup}`])
+    if (copied !== undefined) {
+      throw new Error(`could not copy ${original}: ${copied}`)
+    }
+    items.push({ original, backup })
+  }
+
+  // The manifest comes last, so a folder without one is an incomplete backup that restore skips.
+  const manifest: Manifest = { time: new Date(now).toISOString(), command, items }
+  await $.fs.write(`${folder}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`)</code></pre>
+<p>The manifest comes last. It holds the time, the command and the list of original paths with their backup names. A folder with no <code>manifest.json</code> is an incomplete backup, and restore skips it. A failed copy throws. The hook then denies the Bash call, so the rm does not run.</p>
+<div class="note"><strong>The copy is wider than the README says.</strong> The README says a backup holds what the rm would delete. The code copies every target that exists, whatever flags rm gets. A plain <code>rm</code> of a folder would refuse, and the hook still copies that folder first.</div>
+
+<h3>5. Restore the newest backup with /undo-delete</h3>
+<p>The command is handled by a <code>command.run</code> hook. It calls <code>restore</code>, which finds the newest folder under the backup root that has a manifest. The folder names are ISO times with safe characters, so sorting the names sorts them by age.</p>
+<pre><code>async function newestBackup($: EngineInterface, root: string): Promise&lt;string | undefined&gt; {
+  const folders = (await entriesOf($, root))
+    .filter(entry =&gt; entry.kind === 'dir')
+    .map(entry =&gt; entry.name)
+    .sort()
+    .reverse()
+
+  for (const name of folders) {
+    if (await $.fs.exists(`${root}/${name}/manifest.json`)) {
+      return name
+    }
+  }
+  return undefined
+}</code></pre>
+<p>For each item, <code>putBack</code> checks first. If a file with that name is already in the parent folder, it refuses that item and touches nothing. Otherwise it makes the parent folder and copies the backup back with <code>cp -Rp</code>.</p>
+<pre><code>async function putBack($: EngineInterface, folder: string, item: Item): Promise&lt;string | undefined&gt; {
+  if ((await namesIn($, dirOf(item.original))).includes(nameOf(item.original))) {
+    return 'a file is already at that path'
+  }
+
+  const made = await attempt($, ['mkdir', '-p', dirOf(item.original)])
+  if (made !== undefined) {
+    return made
+  }
+  return attempt($, ['cp', '-Rp', `${folder}/${item.backup}`, item.original])
+}</code></pre>
+<p>Each item is tried on its own. If every item comes back, the mod removes the backup folder with <code>rm -r</code>. It runs that through the process API, not as a Bash call, so the <code>tool.call</code> hook does not see it. If any item fails, the backup stays and the reply names its folder.</p>
+<div class="note"><strong>A partial restore repeats.</strong> If one item fails, the next <code>/undo-delete</code> restores the same newest backup. The items that already came back now show as existing, so they are reported as failed again. The README describes the same result.</div>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+claude plugin install delete-backup@waraxe-claude-mods</code></pre>
+<p>Replace <code>&lt;owner&gt;/&lt;repo&gt;</code> with the GitHub path of the marketplace. The source does not give that path.</p>
+<ul class="steps">
+  <li><strong>Work as usual.</strong> Run Bash commands as you normally would. Before an rm runs, its existing targets are copied. A Bash call with an rm the hook cannot place is denied, and the reason is shown.</li>
+  <li><strong>Undo the newest deletion.</strong> Run <code>/undo-delete</code>. It puts the newest complete backup back at its original paths and lists what it restored.</li>
+  <li><strong>Find the backups.</strong> They are in <code>~/.claude/delete-backup</code>, with one time-stamped folder for each Bash call that had something to copy. Each folder holds the copies and a <code>manifest.json</code>.</li>
+  <li><strong>Know the cost.</strong> Each covered rm copies what it would delete first. A large <code>rm -rf</code>, such as one on <code>node_modules</code>, takes time and needs about as much disk space again. Nothing is pruned automatically, so delete old backup folders yourself.</li>
+</ul>
+
+<p>Limits, from the README:</p>
+<ul class="steps">
+  <li>Only <code>rm</code>, optionally after <code>sudo</code>, is covered. <code>find -delete</code>, <code>xargs rm</code> and <code>git clean</code> are not. Neither are <code>/bin/rm</code>, <code>command rm</code>, Write or Edit.</li>
+  <li>Shell variables and <code>$(...)</code> are not expanded. An rm with a <code>$</code> is denied rather than backed up.</li>
+  <li>Only the newest backup is restored each time. Older backups stay until you delete them.</li>
+  <li>When the folder cannot be known, as after <code>make &amp;&amp; cd build</code>, rm is denied until a Bash call runs <code>cd</code> with an absolute path.</li>
+</ul>
+
+<div class="warn"><strong>Where the README and the code differ.</strong>
+<ul>
+  <li>The README says a <code>cd</code> with an absolute path sets the folder. The code also accepts <code>~</code>, <code>~/...</code>, and a bare <code>cd</code>, which goes home.</li>
+  <li>The README says rm may follow <code>sudo</code>. The code strips one <code>sudo</code> only. <code>sudo -E rm</code> and a leading <code>VAR=value rm</code> are not seen. The README does not say so.</li>
+  <li>The README's list of denied cases leaves out an rm that may run in more than one folder. The code denies that case.</li>
+  <li>The README says a backup holds what rm would delete. The code copies every existing target (step 4).</li>
+  <li>Compound-command words such as <code>then</code> and <code>do</code> hide the command after them. The README is silent on this (step 2).</li>
+  <li><code>./</code> and <code>../</code> are not skipped (step 3).</li>
+</ul>
+</div>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the hook read the command as tokens instead of searching the text for rm?</summary>
+  <p>A text search would match rm inside quoted text or a path, and it cannot tell where one command ends. Tokens keep quoted text as one word and split at the operators, so the hook can see which word starts each command.</p>
+</details>
+<details class="check">
+  <summary>Why is manifest.json written last?</summary>
+  <p>Restore looks only at folders that have a manifest.json. Writing it last means a folder with a manifest has every copy in it. If a copy fails part way, the folder has no manifest, and restore skips it.</p>
+</details>
+<details class="check">
+  <summary>You run make &amp;&amp; cd build in one Bash call, then rm -rf dist in the next. What happens?</summary>
+  <p>The hook denies the rm, with the reason that the working folder is unknown. The cd may not have run, so the hook cannot name the folder. A Bash call that runs cd with an absolute path sets the folder again.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li>Main source: <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/delete-backup/hooks/register.ts">register.ts</a>, which holds the hook, the walk, the backup and the restore.</li>
+  <li>API types: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a>. Search it for <code>'tool.call'</code>, <code>$.store</code> or <code>$.process.run</code>. Do not read it all.</li>
+  <li>Reference: <a href="../reference/mod-api-cheatsheet.html">mod API cheat sheet</a>.</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0001-delete-guard.html">← 0001 Delete guard</a>
+  <a href="../index.html">Index</a>
+  <a href="0003-reflect-and-memory.html">0003 Reflect and memory →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0010: Prompt shaping</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0010 · Family</p>
+<h1>Prompt shaping</h1>
+<p class="lede">These mods change or stop a prompt at the moment you press Enter, so that Claude gets a clear request instead of a loose one. This marketplace ships Prompt Bouncer, which drops a vague prompt before Claude sees it and suggests the project's own word.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt>
+  <dd><a href="https://github.com/ray-amjad/claude-code-mods">prompt-bouncer</a> 0.1.2, from the <code>plugins/prompt-bouncer</code> folder of ray-amjad/claude-code-mods</dd>
+  <dt>Folder</dt>
+  <dd><code>plugins/prompt-bouncer</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code> (shows the mode, registers two commands), <code>prompt.submit</code> (judges the prompt and drops a vague one), <code>command.run</code> (<code>/bouncer</code>, <code>/force</code>)</dd>
+  <dt>Calls</dt>
+  <dd><code>$.model.complete</code>, <code>$.fs.exists</code>, <code>$.fs.list</code>, <code>$.fs.read</code>, <code>$.session.cwd</code>, <code>$.session.messages</code>, <code>$.env.get</code>, <code>$.command.register</code>, <code>$.clock.after</code>, <code>$.prompt.submit</code>, <code>$.ui.status</code>, <code>$.ui.toast</code>, <code>$.ui.log</code></dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.js</code>, <code>tests/quick-rules.test.ts</code>, <code>tests/headless.test.ts</code>, <code>example/</code>, <code>images/</code>, <code>screenshot.png</code>, <code>tsconfig.json</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt>
+  <dd>Ray Amjad, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>prompt-bouncer</code> 0.1.2, by Ray Amjad, MIT · upstream <a href="https://github.com/ray-amjad/claude-code-mods">https://github.com/ray-amjad/claude-code-mods</a>.<br>Install: <code>claude plugin install prompt-bouncer@waraxe-claude-mods</code> · folder <a href="../../plugins/prompt-bouncer/">plugins/prompt-bouncer</a> · <a href="../../plugins/prompt-bouncer/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Prompt Bouncer checks each prompt you type at <code>prompt.submit</code>, the moment you press Enter. If the prompt is vague, the mod drops it, a toast says why, and Claude Code puts the prompt back in the box for you to fix. The README's reason: a vague prompt costs a whole turn of Claude guessing. Quick mode, the default, uses a few patterns and no model. Project mode reads the project's own docs and asks Haiku if the prompt is specific and uses the project's terms. <code>/force</code> sends any prompt past it, and slash commands always pass.</p>
+<p>Your <a href="../MISSION.md">mission</a> asks you to name the hooks a mod uses and say why, and this mod is the plainest guard you will meet: one <code>prompt.submit</code> handler that returns <code>{ drop }</code> or calls <code>next(e)</code>, and lets the prompt through when anything breaks.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>brain-dump (Ben AI)</td><td>Shapes a long message into a four-part brief after up to three questions. The brief goes into the prompt box for you to send.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/benai-mods/plugins/brain-dump">benai-mods/plugins/brain-dump</a></td><td>Not shipped: no licence</td></tr>
+    <tr><td>1a</td><td>Prompt Enhancer</td><td>Rewrites the prompt in the prompt bar and names the skills that fit. You start it by hand.</td><td>Video only. No code is on disk. Description from <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/docs/MODS-FINAL-SYNTHESIS.md">MODS-FINAL-SYNTHESIS.md</a>.</td><td>Not shipped: no code</td></tr>
+    <tr><td>1b</td><td>brain dump (WeAreNoCode)</td><td>Holds a long message in a band, sorts it into goal, facts and asks, and asks up to three questions. It sends your words unchanged if you choose.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/wearenocode-claude-mods/brain-dump">wearenocode-claude-mods/brain-dump</a></td><td>Not shipped: no licence</td></tr>
+    <tr><td>1c</td><td>Prompt Upgrade</td><td>For a short prompt, asks questions first, then sends a more detailed prompt.</td><td>Video only. No code is on disk. Description from <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/docs/MODS-FINAL-SYNTHESIS.md">MODS-FINAL-SYNTHESIS.md</a>.</td><td>Not shipped: no code</td></tr>
+    <tr><td>1d</td><td>Prompt Bouncer</td><td>Drops a vague prompt before Claude sees it, and suggests the project's own term. Quick mode uses patterns. Project mode asks Haiku, with the project's docs.</td><td>Upstream: <a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/prompt-bouncer">ray-amjad/claude-code-mods, prompt-bouncer</a>. Here: <code>plugins/prompt-bouncer</code></td><td>Shipped in this marketplace</td></tr>
+    <tr><td>Ours</td><td>dictation-fixer</td><td>Tidies long messages that look dictated, then asks whether to send the cleaned version or the text as typed.</td><td>Here: <code>plugins/dictation-fixer</code>. See <a href="0011-dictation-fixer.html">Lesson 0011: dictation-fixer</a></td><td>Ours, shipped in this marketplace</td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The mod is one file of plain JavaScript, <code>hooks/register.js</code>. <code>hooks/hooks.json</code> points to it. The settings come from <code>userConfig</code> in <code>plugin.json</code>, and the engine hands them to <code>register(on, options)</code>.</p>
+
+<h3>1. Show the mode and register two commands</h3>
+<p>At <code>session.start</code> the hook notes whether the session is headless (<code>claude -p</code> or the SDK). In an interactive session it puts the mode on the status line. It then registers <code>/bouncer</code> and <code>/force</code>. A failure to register is logged, and the session goes on.</p>
+<pre><code>  on('session.start', async ($, e, next) =&gt; {
+    headless = e.isInteractive === false
+    if (!headless) $.ui.status((await currentMode($, options)) + ' mode')
+    try {
+      await $.command.register({ name: 'bouncer', description: 'Show prompt-bouncer, or switch it: /bouncer quick|project|off', argumentHint: '[quick|project|off]' })
+      await $.command.register({ name: 'force', description: 'Send a prompt past prompt-bouncer', argumentHint: '&lt;prompt&gt;' })
+    } catch (err) {
+      $.ui.log('could not register commands: ' + err.message)
+    }
+    return next(e)
+  })</code></pre>
+
+<h3>2. Pass what it should not judge</h3>
+<p>The <code>prompt.submit</code> hook judges only what a person typed. A prompt from another origin, such as a notification or another session, goes straight on. The prompt that <code>/force</code> sent passes once. A prompt that starts with <code>!</code> passes with the <code>!</code> removed. Slash commands, empty prompts and the <code>off</code> mode pass too.</p>
+<pre><code>  on('prompt.submit', async ($, e, next) =&gt; {
+    const text = e.text.trim()
+
+    // Only judge what a person typed, never a notification or a peer's message
+    const kind = e.origin &amp;&amp; e.origin.kind
+    if (kind !== 'composer' &amp;&amp; kind !== 'sdk' &amp;&amp; kind !== 'bridge' &amp;&amp; kind !== undefined) return next(e)
+
+    // Escape hatches: /force sent this one, or it starts with !
+    if (forceNext !== null &amp;&amp; text === forceNext) { forceNext = null; return next(e) }
+    if (text.startsWith('!')) return next({ ...e, text: text.slice(1).trim() })
+    if (text.startsWith('/')) return next(e)
+
+    const m = await currentMode($, options)
+    if (m === 'off' || text === '') return next(e)</code></pre>
+
+<h3>3. Quick mode: patterns, no model</h3>
+<p><code>quickRules</code> lets a prompt pass if it has more than 15 words, or if it names something concrete. The <code>ANCHOR</code> pattern counts a file, a path, code in backticks, a quoted name, <code>CamelCase</code>, <code>snake_case</code> or a Capitalized Name. Otherwise a vague noun phrase, such as "the thing" or "stuff", bounces it. On the first prompt of a session, a bare "it" or "that" bounces it too, because there is nothing for it to point back to.</p>
+<pre><code>// Quick mode: no model, just patterns. Short + vague + nothing named = bounce.
+function quickRules(text, isFirst) {
+  const words = text.split(/\s+/).length
+  if (words &gt; 15 || ANCHOR.test(text)) return { pass: true }
+  const noun = text.match(VAGUE_NOUNS)
+  if (noun) {
+    return { pass: false, reason: '"' + noun[0] + '" doesn\'t say which one. Name the file, feature or component.' }
+  }
+  const pronoun = text.match(BARE_PRONOUN)
+  if (isFirst &amp;&amp; pronoun) {
+    return { pass: false, reason: '"' + pronoun[0] + '" has nothing to point back to yet. Say what you mean.' }
+  }
+  return { pass: true }
+}</code></pre>
+
+<h3>4. Project mode: Haiku reads the project's docs</h3>
+<p><code>loadDocs</code> reads the files named in the <code>docs</code> setting with <code>$.fs</code>, fresh on every prompt, and cuts them at <code>maxDocChars</code>. <code>projectGate</code> then makes one Haiku call, capped at 300 tokens and 20 seconds. The docs go first and are marked <code>cache: true</code>, because they are the same on every prompt. The prompt goes after them. Haiku answers JSON: a pass, or a reason and a suggestion. If Haiku does not answer, or the answer is not JSON, the prompt passes.</p>
+<pre><code>async function projectGate($, text, isFirst, docs) {
+  const r = await $.model.complete({
+    model: 'haiku',
+    maxTokens: 300,
+    timeoutMs: 20000,
+    system: 'You are a gatekeeper for a coding agent. Reply with JSON only, no prose.',
+    prompt: [
+      // The docs are the same every prompt, so they form the cached prefix
+      { text: 'PROJECT DOCS (the project\'s own language):\n\n' + docs.text, cache: true },
+      {
+        text: 'A developer is about to send this prompt to a coding agent' +
+          (isFirst ? ' as the FIRST message of a new session (so "it" or "that" points at nothing)' : ' mid-conversation (short follow-ups like "yes" or "do it" are fine)') +
+          ':\n\n&lt;prompt&gt;\n' + text + '\n&lt;/prompt&gt;\n\n' +
+          'Bounce it if EITHER is true: (1) it uses a loose word where the docs define a precise term ' +
+          '(any word in the glossary\'s "Not" column, or a close paraphrase of one, always bounces), or ' +
+          '(2) the agent would have to guess what it refers to, because it names no file, feature or component. ' +
+          'A prompt that already names a project term or a file passes, even if other words in it are casual. ' +
+          'Ordinary verbs and words like "switch", "change" or "update" are not loose terms.\n\n' +
+          'Reply {"pass": true} or {"pass": false, "reason": "&lt;one short sentence&gt;", "suggestion": "&lt;under 25 words: the prompt rewritten with the project\'s term; if it could mean two things, ask which one, e.g. this project calls that the billing panel, which one did you mean?&gt;"}',
+      },
+    ],
+  })
+  // If Haiku is down or answers nonsense, let the prompt through
+  if (!r.isAnswered) return { pass: true }
+  try {
+    const json = JSON.parse(r.text.slice(r.text.indexOf('{'), r.text.lastIndexOf('}') + 1))
+    return json.pass === false ? { pass: false, reason: json.reason || 'too vague for this project', suggestion: json.suggestion } : { pass: true }
+  } catch {
+    return { pass: true }
+  }
+}</code></pre>
+
+<h3>5. Bounce with <code>{ drop }</code>, and fail open</h3>
+<p>A pass calls <code>next(e)</code>. A bounce counts itself, shows a toast for eight seconds, and returns <code>{ drop }</code> with the reason on one line. The prompt never enters the session, and Claude Code puts it back in the box. The <code>.catch</code> on the hook calls <code>next(e)</code> if the hook throws, so a broken bouncer never locks you out.</p>
+<pre><code>    if (verdict.pass) return next(e)
+
+    // Bounce: tell the user why (Claude Code puts the prompt back in the box to fix)
+    bounces += 1
+    // The toast shows the fix when there is one, else the reason
+    if (!headless) $.ui.toast('Bounced. ' + (verdict.suggestion || verdict.reason), { timeoutMs: 8000 })
+    // One line: a drop reason with newlines in it is mangled
+    return { drop: 'prompt-bouncer: ' + verdict.reason + (verdict.suggestion ? ' Try: ' + verdict.suggestion : '') + ' (Send it anyway: /force &lt;prompt&gt;)' }
+  }).catch(($, e, next) =&gt; next(e))
+  // A bouncer that breaks lets prompts through: it should never lock you out</code></pre>
+
+<h3>6. Send a prompt past the bouncer with <code>/force</code></h3>
+<p>A command cannot submit a prompt from inside its own run, because it would wait on its own turn. So <code>/force</code> saves the text in <code>forceNext</code> and sets a 50-millisecond timer. The timer submits the text with <code>asUser: true</code>, and step 2 lets that exact text through once.</p>
+<pre><code>  // /force &lt;prompt&gt; sends the prompt as your own words, past the bouncer
+  on('command.run', { command: 'force' }, async ($, e) =&gt; {
+    const text = e.args.trim()
+    if (!text) return { text: 'Usage: /force &lt;prompt&gt;' }
+    forceNext = text
+    // A command can't submit a prompt itself (it would wait on its own turn),
+    // so a timer submits it a moment later, once the command has finished
+    $.clock.after(50, () =&gt; $.prompt.submit({ text, asUser: true }).catch((err) =&gt; $.ui.log('force failed: ' + err.message)))
+    return {}
+  })</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install prompt-bouncer@waraxe-claude-mods</code></pre>
+<p>A line under the prompt shows the mode, for example <code>⚠ prompt-bouncer: quick mode</code>. The README says it was tested with Claude Code 2.1.296.</p>
+
+<ul class="steps">
+  <li>Type as usual. A bounced prompt shows a toast and a <code>Prompt dropped by a hook</code> line, and it comes back in the prompt box.</li>
+  <li>Type <code>/force your prompt</code> to send it as your own words, unchecked.</li>
+  <li>Type <code>/bouncer</code> to see the mode, the bounces this session and the docs it found. Type <code>/bouncer quick</code>, <code>/bouncer project</code> or <code>/bouncer off</code> to switch for this session.</li>
+  <li>In <code>claude -p</code>, a prompt that starts with <code>!</code> passes, and the <code>!</code> is removed. In the interactive prompt box <code>!</code> is shell mode, so use <code>/force</code> there.</li>
+  <li>To try project mode, open the plugin's <code>example/</code> folder (<code>plugins/prompt-bouncer/example</code> in this repository), a tiny invoicing app with a glossary. Run <code>claude</code>, then <code>/bouncer project</code>. Try "the payments page shows the wrong price, fix it", then "The Billing Panel shows the wrong plan price".</li>
+</ul>
+
+<p><strong>Settings.</strong></p>
+<table>
+  <thead>
+    <tr><th>Option</th><th>Default</th><th>What it does</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>mode</code></td><td><code>quick</code></td><td><code>quick</code> or <code>project</code>. Set it with <code>/plugin configure prompt-bouncer@waraxe-claude-mods</code>.</td></tr>
+    <tr><td><code>docs</code></td><td><code>CLAUDE.md,docs/glossary.md,docs/decisions/*.md,specs/*.md,docs/specs/*.md</code></td><td>The files project mode reads, comma-separated, from the folder Claude Code runs in. A <code>*</code> matches file names inside one folder.</td></tr>
+    <tr><td><code>maxDocChars</code></td><td><code>20000</code></td><td>Docs past this many characters are cut, so the check stays cheap.</td></tr>
+    <tr><td><code>PROMPT_BOUNCER_MODE</code> (env)</td><td>unset</td><td>Overrides <code>mode</code> for one session, for example <code>PROMPT_BOUNCER_MODE=project claude</code>.</td></tr>
+  </tbody>
+</table>
+<p>The code picks the mode in this order: a <code>/bouncer</code> switch, then <code>PROMPT_BOUNCER_MODE</code>, then the <code>mode</code> setting, then <code>quick</code>.</p>
+
+<p><strong>Cost.</strong> Quick mode uses no model and adds nothing. Project mode makes one Haiku call for each judged prompt, which adds a few seconds. A bounced prompt never reaches Claude, so it costs no turn. The mod sends nothing to Claude itself: the reason and the suggestion are for you only.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>Haiku is judging, so expect the odd miss or the odd bounce you disagree with. <code>/force</code> is there for that.</li>
+  <li>Quick mode is English only, and its word lists are short.</li>
+  <li><code>docs</code> patterns support <code>*</code> inside one folder, such as <code>docs/decisions/*.md</code>, not <code>**</code>.</li>
+  <li>A <code>/bouncer</code> switch lasts for the session and resets if the mod reloads.</li>
+  <li>In <code>-p</code> and SDK sessions the drop still applies, but no status line or toast is drawn.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>What happens if Haiku is down, Haiku answers nonsense, or the hook throws?</summary>
+  <p>The prompt goes through each time. <code>projectGate</code> returns a pass when the call is not answered and when the answer does not parse as JSON. The <code>.catch(($, e, next) =&gt; next(e))</code> on the <code>prompt.submit</code> hook passes the prompt on if the hook throws. The README puts it plainly: a broken bouncer should never lock you out.</p>
+</details>
+<details class="check">
+  <summary>Why does <code>/force</code> use a timer, and how does its prompt get past the bouncer?</summary>
+  <p>A command cannot submit a prompt from inside its own run, because it would wait on its own turn. So <code>/force</code> stores the text in <code>forceNext</code> and submits it 50 milliseconds later with <code>$.prompt.submit({ text, asUser: true })</code>. When that prompt reaches <code>prompt.submit</code>, its text equals <code>forceNext</code>, so the hook clears <code>forceNext</code> and calls <code>next(e)</code>.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="../../plugins/prompt-bouncer/hooks/register.js">The mod's source: hooks/register.js</a></li>
+  <li><a href="https://github.com/ray-amjad/claude-code-mods">Upstream: ray-amjad/claude-code-mods</a>, the <code>plugins/prompt-bouncer</code> folder</li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: <code>prompt.submit</code> and its <code>{ drop }</code>, <code>model.complete</code>, <code>cache</code></a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0009-side-questions.html">← 0009 Side questions</a>
+  <a href="../index.html">Index</a>
+  <a href="0011-dictation-fixer.html">0011 Dictation fixer →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

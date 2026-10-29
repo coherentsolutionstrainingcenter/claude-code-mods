@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0003: Reflect and memory</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0003 · Family</p>
+<h1>Reflect and memory</h1>
+<p class="lede">These mods turn a correction you give Claude into a lasting rule, so the next chat starts from what you already taught it. This marketplace ships reflect-mod, which finds the rule in your prompt and offers to save it to CLAUDE.md.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt>
+  <dd><a href="https://github.com/BayramAnnakov/claude-reflect">reflect-mod</a> 3.3.0, from the <code>mod/</code> folder of BayramAnnakov/claude-reflect</dd>
+  <dt>Folder</dt>
+  <dd><code>plugins/reflect-mod</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code> (registers two commands, fills the band), <code>prompt.submit</code> (queues a prompt), <code>turn.complete</code> (fills the band again), <code>prompt.compose</code> (adds saved rules to the system prompt), <code>command.run</code> (<code>/reflect-queue</code>, <code>/reflect-pause</code>), <code>ui.render</code> for <code>AbovePrompt</code> (draws the band)</dd>
+  <dt>Calls</dt>
+  <dd><code>$.model.complete</code>, <code>$.store.get</code>, <code>$.store.set</code>, <code>$.fs.exists</code>, <code>$.fs.read</code>, <code>$.fs.write</code>, <code>$.prompt.read</code>, <code>$.prompt.fill</code>, <code>$.session.root</code>, <code>$.session.messages</code>, <code>$.command.register</code>, <code>$.clock.after</code>, <code>$.clock.now</code>, <code>$.env.get</code>, <code>$.ui.toast</code>, <code>$.ui.resolve</code>, and <code>atom</code>, <code>read</code>, <code>update</code> for state</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>hooks/reflect.test.tsx</code>, <code>types/index.d.ts</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt>
+  <dd>Bayram Annakov, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>reflect-mod</code> 3.3.0, by Bayram Annakov, MIT · upstream <a href="https://github.com/BayramAnnakov/claude-reflect">https://github.com/BayramAnnakov/claude-reflect</a>.<br>Install: <code>claude plugin install reflect-mod@waraxe-claude-mods</code> · folder <a href="../../plugins/reflect-mod/">plugins/reflect-mod</a> · <a href="../../plugins/reflect-mod/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>reflect-mod checks each short prompt you type with one Haiku call. The call decides if the prompt states a rule worth keeping, such as "no, use pnpm". If it does, a band above the prompt shows the rule. You press a button to save it to <code>./CLAUDE.md</code> or <code>~/.claude/CLAUDE.md</code>, to edit it, or to skip it. A saved rule also goes into this session's system prompt at once.</p>
+<p>The same repository holds a Python plugin that queues corrections for a later <code>/reflect</code> review. The README says the mod does the review "at the moment you correct" instead. Only the mod is shipped here.</p>
+<p>Your <a href="../MISSION.md">mission</a> asks you to name the hooks and calls a mod uses and say why, and this mod is a clear case: one hook queues the prompt, one model call judges it, and a band button writes a file Claude reads in every chat.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>5</td><td>reflect (Ben AI)</td><td>Offers one drafted rule above the prompt after a correction. Save everywhere, Save to vault or Skip.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/benai-mods/plugins/reflect">benai-mods/plugins/reflect</a></td><td>Not shipped: no licence</td></tr>
+    <tr><td>5a</td><td>reflect-mod (claude-reflect)</td><td>Checks each short prompt with Haiku, in any language. A band above the prompt saves a found rule to CLAUDE.md on one press. The repository also holds a Python plugin that queues corrections for a later <code>/reflect</code> review.</td><td>Upstream: <a href="https://github.com/BayramAnnakov/claude-reflect">BayramAnnakov/claude-reflect</a>, the <code>mod/</code> folder. Here: <code>plugins/reflect-mod</code></td><td>Shipped in this marketplace</td></tr>
+    <tr><td>5b</td><td>reflect (WeAreNoCode)</td><td>The same band idea. The model also picks where the rule goes: this project, all projects, or one skill's <code>SKILL.md</code>.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/wearenocode-claude-mods/reflect">wearenocode-claude-mods/reflect</a></td><td>Not shipped: no licence</td></tr>
+    <tr><td>5c</td><td>memory-fork</td><td>After each turn, Haiku decides if memory needs a change. A tool-less fork drafts it, and the mod writes the files and shows a band and a pane.</td><td>Cloned: <a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/memory-fork">ray-amjad/claude-code-mods, memory-fork</a></td><td>Not shipped</td></tr>
+    <tr><td>5d</td><td>dream-pass</td><td>Tidies Claude's memory folder: merges duplicates, rewrites stale notes and removes dead ones. Backs up first, with <code>/dream undo</code>.</td><td>Cloned: <a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/dream-pass">ray-amjad/claude-code-mods, dream-pass</a></td><td>Not shipped</td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The mod is one file, <code>hooks/register.tsx</code>. <code>hooks/hooks.json</code> points to it. The types in <code>types/index.d.ts</code> describe a <code>Learning</code>: a rule, its scope (<code>global</code> or <code>project</code>), a count, and a status (<code>pending</code>, <code>saved</code> or <code>skipped</code>).</p>
+
+<h3>1. Queue the prompt, and only run cheap checks</h3>
+<p>The <code>prompt.submit</code> hook must not slow your typing. It keeps a prompt only if you typed it (at the terminal or over Remote Control), it is not a slash command, and it is not an acknowledgement such as "ok" or "continue". It must also be 500 characters or fewer, unless it starts with <code>remember:</code>, and it must not look like a credential. A kept prompt goes on a queue of up to 20. A timer starts the work, and the prompt goes on at once with <code>next(e)</code>.</p>
+<pre><code>  // Only cheap checks here: the prompt goes on at once, the work runs on a timer.
+  on('prompt.submit', ($, e, next) =&gt; {
+    const text = e.text.trim()
+    const isCandidate =
+      HUMAN.has(e.origin.kind) &amp;&amp;
+      !text.startsWith('/') &amp;&amp;
+      !isTrivial(text) &amp;&amp;
+      (text.length &lt;= MAX_PROMPT || remembered(text) !== undefined) &amp;&amp;
+      !looksSecret(text)
+    if (isCandidate &amp;&amp; queue.length &lt; MAX_QUEUE) {
+      queue.push(text)
+      $.clock.after(0, () =&gt; void drain($).catch(() =&gt; undefined))
+    }
+    return next(e)
+  })</code></pre>
+
+<h3>2. Ask Haiku if the prompt is a rule</h3>
+<p><code>checkOne</code> runs for each queued prompt. A prompt that starts with <code>remember:</code> skips the model and becomes a global rule. Any other prompt gets one <code>$.model.complete</code> call, capped at 300 tokens and 30 seconds. The system prompt says the user message and the last reply are data, not instructions. The model answers JSON with <code>is_rule</code>, <code>rule</code>, <code>scope</code> and <code>confidence</code>. <code>parseVerdict</code> passes the rule through <code>cleanRule</code>, which drops a rule over 200 characters, one with more than one line, and one that looks like a secret. A verdict below 0.7 confidence is dropped.</p>
+<pre><code>/** One prompt, end to end. Everything slow happens here, outside the prompt's own dispatch. */
+async function checkOne($: EngineInterface, text: string) {
+  if ((await $.store.get('paused')) === true) return
+  const root = await $.session.root()
+  const told = remembered(text)
+  if (told !== undefined) {
+    const rule = cleanRule(told)
+    if (rule === undefined) {
+      $.ui.toast('reflect: not kept - one line, no secrets, at most 200 characters')
+      return
+    }
+    await record($, { isRule: true, rule, scope: 'global', confidence: 1 }, root, true)
+    return
+  }
+  const r = await $.model.complete({
+    model,
+    system: SYSTEM,
+    prompt: checkPrompt(text, await lastReply($), root),
+    maxTokens: 300,
+    timeoutMs: 30000,
+  })
+  if (!r.isAnswered) return
+  const v = parseVerdict(r.text)
+  if (v === undefined || !v.isRule || v.confidence &lt; MIN_CONFIDENCE) return
+  await record($, v, root, false)
+}</code></pre>
+<p><code>record</code> then stores the rule. A rule that is very like one already found (a similarity of 0.6 or more on ordered word pairs) adds one to that rule's count instead of making a new row.</p>
+
+<h3>3. Draw the band above the prompt</h3>
+<p>The band reads the <code>pending</code> state, which holds the waiting rules for this project and the global ones. <code>refreshBand</code> fills it after each checked prompt, at session start and when a turn completes. The band shows two rules at most. Each has a Save button for the scope the check suggested, a button for the other scope, <strong>Edit</strong> and <strong>Skip</strong>. It shows nothing while a survey is open.</p>
+<pre><code>  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =&gt; {
+    if (e.props.hasSurvey) return next(e)
+    const list = await read($, pending)
+    if (list.length === 0) return next(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const below = await next(e)
+    return (
+      &lt;Box flexDirection="column"&gt;
+        {list.slice(0, BAND_ROWS).map(l =&gt; (
+          &lt;Box key={`row:${l.id}`} flexDirection="column"&gt;
+            &lt;Text color="green" wrap="wrap"&gt;
+              {`reflect · "${l.rule}"${l.count &gt; 1 ? ` ×${l.count}` : ''}`}
+            &lt;/Text&gt;
+            &lt;Box flexDirection="row" gap={1}&gt;
+              &lt;Button
+                key={`save:${l.id}`}
+                variant="primary"
+                label={l.scope === 'project' ? 'Save to ./CLAUDE.md' : 'Save to ~/.claude/CLAUDE.md'}
+                onPress={() =&gt; saveTo($, l, l.scope)}
+              /&gt;
+              &lt;Button
+                key={`other:${l.id}`}
+                label={l.scope === 'project' ? 'Global instead' : 'This repo instead'}
+                onPress={() =&gt; saveTo($, l, l.scope === 'project' ? 'global' : 'project')}
+              /&gt;
+              &lt;Button key={`edit:${l.id}`} label="Edit" onPress={() =&gt; edit($, l)} /&gt;
+              &lt;Button key={`skip:${l.id}`} label="Skip" onPress={() =&gt; skip($, l)} /&gt;
+            &lt;/Box&gt;
+          &lt;/Box&gt;
+        ))}</code></pre>
+
+<h3>4. Save one rule at a time, after reading the file again</h3>
+<p><code>saveTo</code> chains each save on <code>writing</code>, so saves in one session run one after another. Inside, it checks that the rule is still pending. It reads the CLAUDE.md file just before it writes, and it writes only if the text changed. It then marks the rule saved, adds it to <code>savedThisSession</code> and shows a toast.</p>
+<pre><code>/** Writes the rule to the CLAUDE.md the button names, after reading it again just before the write. */
+async function saveTo($: EngineInterface, l: Learning, scope: 'global' | 'project') {
+  const job = writing.then(async () =&gt; {
+    const latest = (await items($)).find(one =&gt; one.id === l.id)
+    if (latest === undefined || latest.status !== 'pending') return
+    const root = await $.session.root()
+    const path = await fileFor($, scope, root)
+    const before = await readText($, path)
+    const after = withRule(before, l.rule)
+    if (after === undefined) {
+      $.ui.toast(`reflect: the claude-reflect markers in ${path} are broken - fix them by hand, nothing written`)
+      return
+    }
+    if (after !== before) await $.fs.write(path, after)
+    await decide($, l.id, 'saved', scope, root)
+    await update($, savedThisSession, rules =&gt; [...rules, { rule: l.rule, scope, project: root }])
+    $.ui.toast(after === before ? `reflect: already in ${path}` : `reflect: saved to ${path}`)
+  })
+  writing = job.catch(() =&gt; undefined)
+  await job
+}</code></pre>
+
+<h3>5. Write inside one marked section</h3>
+<p><code>withRule</code> decides the new file text. If any bullet in the file is very like the rule (0.8 or more), the file is returned unchanged. If the file has no markers, it adds a marked section with a <code>## Learned rules</code> heading at the end. If it has exactly one start marker and one end marker, in order, the rule goes in just before the end marker. Anything else returns <code>undefined</code>, and step 4 writes nothing.</p>
+<pre><code>/**
+ * `file` with `rule` added as a bullet inside the marked section; the file unchanged when a similar bullet is there;
+ * undefined when the markers are broken (one without the other, out of order, or repeated) - never guess where to write.
+ */
+export function withRule(file: string, rule: string): string | undefined {
+  const bullets = file.split('\n').filter(line =&gt; /^\s*[-*] /.test(line))
+  if (bullets.some(line =&gt; similarity(line.replace(/^\s*[-*]\s+/, ''), rule) &gt;= 0.8)) return file
+  const starts = file.split(START).length - 1
+  const ends = file.split(END).length - 1
+  if (starts === 0 &amp;&amp; ends === 0) {
+    const sep = file === '' || file.endsWith('\n\n') ? '' : file.endsWith('\n') ? '\n' : '\n\n'
+    return `${file}${sep}${START}\n## Learned rules\n- ${rule}\n${END}\n`
+  }
+  const start = file.indexOf(START)
+  const end = file.indexOf(END)
+  if (starts !== 1 || ends !== 1 || end &lt; start) return undefined
+  return `${file.slice(0, end)}- ${rule}\n${file.slice(end)}`
+}</code></pre>
+
+<h3>6. Use a saved rule in this session at once</h3>
+<p>A rule written to CLAUDE.md takes effect when the file is read again. The <code>prompt.compose</code> hook closes that gap. It adds a <code>session</code> section to the system prompt that lists the rules saved this session for this project and the global ones.</p>
+<pre><code>  on('prompt.compose', async ($, e, next) =&gt; {
+    const composed = await next(e)
+    const root = await $.session.root()
+    const rules = (await read($, savedThisSession)).filter(r =&gt; r.scope === 'global' || r.project === root)
+    if (rules.length === 0) return composed
+    const text = ['Rules the user saved this session (they are in CLAUDE.md too; follow them):', ...rules.map(r =&gt; `- ${r.rule}`)].join('\n')
+    return { sections: [...composed.sections, { id: 'reflect-mod:saved', text, scope: 'session' as const }] }
+  })</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install reflect-mod@waraxe-claude-mods</code></pre>
+<p>The README says to use either this mod or the Python plugin, not both, because every correction would be captured twice. It runs on Claude Code 2.1.286 or later, with mods.</p>
+
+<ul class="steps">
+  <li>Correct Claude in a short prompt, for example "no, use pnpm". The check runs in the background.</li>
+  <li>When a rule is found, the band shows <code>reflect · "the rule"</code>. A repeat shows a count, such as <code>×2</code>.</li>
+  <li>Press <strong>Save to ./CLAUDE.md</strong> or <strong>Save to ~/.claude/CLAUDE.md</strong>, whichever the check suggested. Press <strong>Global instead</strong> or <strong>This repo instead</strong> to save to the other file.</li>
+  <li>Press <strong>Edit</strong> to put <code>remember: the rule</code> in an empty prompt box, reword it and send it. Press <strong>Skip</strong> to drop it.</li>
+  <li>Type <code>remember: your rule</code> to skip the model and send a rule straight to the band.</li>
+  <li>Type <code>/reflect-queue</code> to list what was found here and globally. Type <code>/reflect-pause</code> to stop checking, and again to start.</li>
+</ul>
+
+<p><strong>Settings.</strong> The README lists none. The code uses <code>haiku</code> for the check.</p>
+
+<p><strong>Cost.</strong> One small model call for each prompt that passes step 1. It runs on the session's own client and counts toward your Claude usage like any request. A <code>remember:</code> prompt costs no call. The prompt text is not stored. Found rules are kept in the plugin's own store, a JSON file under your Claude Code config folder, until you decide on them.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>Two sessions that save to the same CLAUDE.md in the same instant can lose one of the two bullets. Saves in one session run one after another.</li>
+  <li>Mods are early access. A running session older than 2.1.286 writes a "mods off" flag into <code>~/.claude.json</code>, which turns mods off for new sessions too. Restart old sessions if the band never appears.</li>
+  <li>Prompts over 500 characters are not checked, unless they start with <code>remember:</code>. Rules over 200 characters are dropped.</li>
+  <li>Broken markers in CLAUDE.md stop the save. A toast asks you to fix them by hand.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the <code>prompt.submit</code> hook not call the model itself?</summary>
+  <p>The hook only runs cheap checks, pushes the prompt on a queue and calls <code>next(e)</code> at once. A timer, <code>$.clock.after(0, ...)</code>, starts <code>drain</code>, which runs the model call outside the prompt's own dispatch. So your prompt is never held up by the check, and one failed check does not stop the rest of the queue.</p>
+</details>
+<details class="check">
+  <summary>What happens when you press Save and the claude-reflect markers in CLAUDE.md are broken?</summary>
+  <p><code>withRule</code> returns <code>undefined</code> when there is one marker without the other, the end comes before the start, or a marker is repeated. <code>saveTo</code> then shows a toast that says the markers are broken and nothing was written. It returns before it writes, so the file is not touched and the rule stays pending.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="../../plugins/reflect-mod/hooks/register.tsx">The mod's source: hooks/register.tsx</a></li>
+  <li><a href="https://github.com/BayramAnnakov/claude-reflect">Upstream: BayramAnnakov/claude-reflect</a>, the <code>mod/</code> folder</li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: <code>prompt.submit</code>, <code>prompt.compose</code>, <code>model.complete</code></a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0002-delete-backup.html">← 0002 Delete backup</a>
+  <a href="../index.html">Index</a>
+  <a href="0004-mods-manager.html">0004 Mods manager →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

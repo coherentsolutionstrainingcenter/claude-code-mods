@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0012: Cache guard</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0012 · Family</p>
+<h1>Cache guard</h1>
+<p class="lede">These mods watch Claude's one-hour prompt cache, warn you when it is about to go cold, and in the best version keep it warm during a break or stop one expensive cold send.</p>
+
+<dl class="meta">
+  <dt>Best version</dt>
+  <dd><a href="https://github.com/karanb192/cache-tax">Cache Tax (3a), by Karan Bansal</a></dd>
+  <dt>Status</dt>
+  <dd>Cloned from GitHub. The source read for this page is the clone of <a href="https://github.com/karanb192/cache-tax">karanb192/cache-tax</a>. Variants 3 and 3f are local. Variant 3k is cloned from <a href="https://github.com/ray-amjad/claude-code-mods">ray-amjad/claude-code-mods</a>. Variants 3e and 3j are video only.</dd>
+  <dt>Variants</dt>
+  <dd>3a (best), 3, 3e, 3f, 3j, 3k</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.ts</code> (about 790 lines), <code>hooks/status-icons.ts</code>, <code>tests/register.test.ts</code>, <code>README.md</code></dd>
+  <dt>Author and license</dt>
+  <dd>Karan Bansal, MIT (from the plugin manifest).</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>cache-tax</code> 2.3.1, by karanb192, MIT · upstream <a href="https://github.com/karanb192/cache-tax">https://github.com/karanb192/cache-tax</a>.<br>Install: <code>claude plugin install cache-tax@waraxe-claude-mods</code> · folder <a href="../../plugins/cache-tax/">plugins/cache-tax</a> · <a href="../../plugins/cache-tax/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Cache Tax has two jobs. During a break, <code>/keepwarm</code> sends a short fork of the session every 50 minutes, so the one-hour cache is read rather than written again. When you come back to a cold cache with a large context, it drops your first ordinary message once and shows the estimated rewrite cost. Sending it again pays that cost.</p>
+<p>This matters for your mission because this mod spends money on your behalf, so its README states the costs and limits as clearly as the code does. You need both to explain it honestly.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>3a</td><td>Cache Tax (best)</td><td>Keeps the one-hour cache warm during a break, and stops one cold send with its estimated rewrite cost.</td><td>Cloned: <a href="https://github.com/karanb192/cache-tax">karanb192/cache-tax</a></td></tr>
+    <tr><td>3</td><td>cache-clock (ours)</td><td>A countdown band above the prompt until the cache goes cold. It offers a handoff for a big chat, and a Keep warm button pings the cache.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/benai-mods/plugins/cache-clock">benai-mods/plugins/cache-clock</a></td></tr>
+    <tr><td>3e</td><td>Cache Keeper</td><td>Adds limits and a handoff button, according to the workspace synthesis.</td><td>Video only. No code is on disk. See <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/docs/MODS-FINAL-SYNTHESIS.md">MODS-FINAL-SYNTHESIS.md</a>.</td></tr>
+    <tr><td>3f</td><td>usage meter</td><td>Shows the 5-hour and weekly limits, so you can see the plan side of the cost.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/wearenocode-claude-mods/usage-meter">wearenocode-claude-mods/usage-meter</a></td></tr>
+    <tr><td>3j</td><td>countdown with compaction</td><td>A countdown that compacts the chat. The synthesis notes that compaction loses detail.</td><td>Video only. No code is on disk. See <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/docs/MODS-FINAL-SYNTHESIS.md">MODS-FINAL-SYNTHESIS.md</a>.</td></tr>
+    <tr><td>3k</td><td>cache clock with auto handoff</td><td>Ray Amjad's cache clock. It shows context use and a countdown, and writes a handoff note when the warning fires, by default.</td><td>Cloned: <a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/cache-clock">ray-amjad/claude-code-mods, cache-clock</a></td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The mod is one file, <code>hooks/register.ts</code>. It registers eleven hooks, as the validator output in the README lists. The main ones are <code>command.run</code> for <code>/keepwarm</code>, <code>prompt.submit</code> for the guard, and <code>turn.step</code> and <code>turn.complete</code> for the clock. A cold check and a fork-based ping drive all of it. The README says it runs one fork per keep-warm ping, and that it inspects the first non-blank character of each prompt, for a slash.</p>
+
+<h3>1. Set the numbers</h3>
+<p>The constants hold every timing and size the mod uses. The cache lasts one hour. A ping is sent 50 minutes after the last request. The default keep-warm window is six hours. The guard only applies to a context of 50,000 tokens or more.</p>
+<pre><code>const TTL_MS = 60 * 60 * 1000
+const PING_AFTER_MS = 50 * 60 * 1000
+const MIN_PING_MS = 60 * 1000
+const MAX_RETRIES = 3
+const AUTO_WARM_MS = 3 * 60 * 60 * 1000
+const DEFAULT_WINDOW_MS = 6 * 60 * 60 * 1000
+const BIG_TOKENS = 50000
+const PING_PROMPT = 'Reply with the single word: warm'
+const KEY_DEADLINE = 'deadline'
+const KEY_EVERY = 'every'
+const KEY_GUARD = 'guard'
+const KEY_ALWAYS = 'always'</code></pre>
+
+<h3>2. Decide that the cache is cold</h3>
+<p>The cache is cold when at least one hour has passed since the last request, and the context has not been compacted. The guard message uses the same clock. It says how long ago the cache went cold, and the estimated price of the rewrite.</p>
+<pre><code>function isCold(s: State, now: number): boolean {
+  return s.lastRequestAt &gt; 0 &amp;&amp; !s.compacted &amp;&amp; now - s.lastRequestAt &gt;= TTL_MS
+}
+
+function guardText(s: State, now: number): string {
+  const price = priceOf(s.lastModel, s.ctx)
+  const rate = price ? `$${price[1]}/MTok` : 'the cache-write rate'
+  const warm = warmUsd(s)
+  return `the prompt cache went cold ${fmtDuration(now - s.lastRequestAt - TTL_MS)} ago. Sending this re-writes ` +
+    `up to ${s.ctx.toLocaleString('en-US')} tokens at ${rate} = ${fmtUsd(coldUsd(s))}` +
+    (warm == null ? '' : ` (a warm turn would have cost ${fmtUsd(warm)})`) + '.'
+}</code></pre>
+
+<h3>3. Ping the cache with a fork</h3>
+<p>A ping is a tool-less fork of the session. It asks for one word, so the reply is short, but the request still reads the whole cached prefix. The mod marks the fork as in flight, so only one can run at a time. After the await, it checks that nothing changed in the meantime, such as <code>/clear</code>, a resume, a compaction or a real request. If something changed, the reply is dropped.</p>
+<pre><code>  const gen = s.gen
+  const sentAt = s.lastRequestAt
+  s.inFlight = true
+  const sent = await $.model.fork({ prompt: PING_PROMPT }).then(reply =&gt; ({ reply }), (err: unknown) =&gt; ({ err }))</code></pre>
+<pre><code>  // Checked after the last await. A stop, /clear, resume or compaction, or a main request that moved the
+  // cache clock, replaced what this fork was sent for: its reply is dropped and the window armed afresh.
+  if (gen !== s.gen || s.lastRequestAt !== sentAt) return s.pending ? undefined : arm($, s)</code></pre>
+
+<h3>4. Check that the ping really kept the cache warm</h3>
+<p>The mod does not trust the ping. It reads the usage the fork reports. A warm ping reads from the cache and writes only a small amount. The mod calls the ping warm only when the read is above zero, and the write is less than a tenth of the read. If the ping was not warm, the window stops, and the reason says what was read and written.</p>
+<pre><code>  const u = reply.usage
+  const price = priceOf(s.lastModel, u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens)
+  // A warm ping reads the prefix and writes only its own message; a write of a tenth of the read or more means the prefix broke.
+  const warm = u.cache_read_input_tokens &gt; 0 &amp;&amp; u.cache_creation_input_tokens &lt; 0.1 * u.cache_read_input_tokens
+  const usd = price ? pingUsd(u, price) : null
+  s.last = { at: now, read: u.cache_read_input_tokens, write: u.cache_creation_input_tokens, usd, warm }
+  if (!warm) return stop($, s, `the ping read ${fmtTok(u.cache_read_input_tokens)} and wrote ${fmtTok(u.cache_creation_input_tokens)} tokens (${fmtUsd(usd)}), the cache was already gone`)
+  s.lastRequestAt = now
+  await arm($, s)</code></pre>
+
+<h3>5. Refuse one cold send, then let the resend through</h3>
+<p>The <code>prompt.submit</code> hook runs on each prompt. Slash commands and prompts from plugins pass. A cold cache with a big context gets one drop. The mod records the request time of that refusal in <code>ackedAt</code>. The next prompt that arrives while no request has been sent since then goes through, and it is counted as a cold write. Unattended prompts, such as a background task's notification, are never dropped, because nobody could resend them. They are logged instead.</p>
+<pre><code>    if (!isCold(s, now) || s.ctx &lt; BIG_TOKENS) return next(e)
+    // A refused prompt that no person sent would be lost: nobody is there to send it again.
+    const unattended = UNATTENDED.has(e.origin.kind)
+    if (s.guard === 'warn' || unattended) {
+      $.ui.log(`${guardText(s, now)} Sending anyway${unattended ? `, since this ${e.origin.kind} prompt cannot be sent again` : ''}; keepwarm will hold the cache for ${fmtDuration(holdMs(s))} once it lands.`)
+      s.coldWritePending = true
+      return next(e)
+    }
+    if (s.ackedAt === s.lastRequestAt) {
+      s.ackedAt = 0
+      s.coldWritePending = true
+      return next(e)
+    }
+    s.ackedAt = s.lastRequestAt
+    return { drop: `cache-tax: ${guardText(s, now)} Send it again to pay it, and keepwarm will then hold the cache for ${fmtDuration(holdMs(s))}. Or /clear and start from a note.` }</code></pre>
+
+<div class="warn">
+<strong>Read the cost and the TTL before you use it.</strong>
+<ul>
+  <li>Every ping costs tokens. The README says a fork takes no output cap, so the model's reply is billed too. The author measured one ping at about $0.02 for a 75k-token read on Sonnet 5.</li>
+  <li>The 50-minute schedule needs a one-hour main cache. Included subscription usage has one by default. API-key, usage-credit and cloud sessions default to five minutes, so set <code>promptCacheTtl</code> to <code>"1h"</code> for those. A 50-minute timer cannot protect a five-minute cache.</li>
+  <li>The dollar figures are a yardstick on a subscription, not the bill. The README says how cache reads count against the plan limits is not documented.</li>
+</ul>
+</div>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add karanb192/claude-code-mods
+claude plugin install cache-tax@claude-code-mods</code></pre>
+<p>The marketplace is named <code>claude-code-mods</code>. The README needs Claude Code 2.1.287 or later, and says no early-access flag is needed. Restart Claude Code, or run <code>/reload-plugins</code> in an open session.</p>
+
+<ul class="steps">
+  <li>Before a break, type <code>/keepwarm 90m</code> for a 90-minute window, or <code>/keepwarm</code> for six hours. Use <code>/keepwarm status</code> to see the window and the next ping.</li>
+  <li>Watch the row above the prompt. It shows <code>warm</code>, <code>cold</code> or <code>unknown</code>, and the timer.</li>
+  <li>When you come back to a cold cache with a context of 50,000 tokens or more, your first ordinary message is dropped once, with the estimated price. Send it again to pay the price, or type <code>/clear</code> and start from a note.</li>
+  <li>Type <code>/cache-tax</code> to see the cache estimate and this session's cold-write count. Type <code>/cache-tax guard warn</code> to show the price and send the message, with no drop.</li>
+  <li>Type <code>/keepwarm off</code> to stop the window. It also turns <code>always</code> off.</li>
+</ul>
+
+<p><strong>Cost.</strong> A ping is a fork. It reads the cached prefix, which is cheap, and it writes a few uncached tokens. It also pays for the model's reply. A cold send of a big context pays the full write price instead. Read the list prices in the README before you choose a window.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>Mods must be allowed to load. Local settings, safe mode or organisation policy can stop them.</li>
+  <li>A warm ping proves the cache was warm at that moment. A change to the prompt prefix can still invalidate it.</li>
+  <li>The token count in the refusal is an upper bound. The engine reports the last response's input and output together.</li>
+  <li>The cold-write count is kept in memory. <code>/clear</code> resets it.</li>
+  <li>The author ran one transcript-verified return. The README says that shows one configuration, not net savings for every setup.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the guard ignore a cold cache when the context is under 50,000 tokens?</summary>
+  <p>The check <code>if (!isCold(s, now) || s.ctx &lt; BIG_TOKENS) return next(e)</code> lets the message through when the cache is warm, or when the context is smaller than <code>BIG_TOKENS</code> (50,000). A rewrite of a small context costs little, so the guard does not interrupt you for it.</p>
+</details>
+<details class="check">
+  <summary>How does the mod tell that a ping really kept the cache warm?</summary>
+  <p>It reads the usage the fork reports. A ping is warm only when <code>cache_read_input_tokens</code> is above zero and <code>cache_creation_input_tokens</code> is less than a tenth of the read. If the ping is not warm, <code>stop</code> ends the window and gives the reason, with the read and write counts.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/karanb192/cache-tax">Variant 3a on GitHub: cache-tax</a></li>
+  <li><a href="https://github.com/karanb192/cache-tax/blob/main/hooks/register.ts">The mod's source: hooks/register.ts</a> (in the session clone)</li>
+  <li><a href="file:///Users/igorwaraxe/Downloads/benai-mods/plugins/cache-clock">Variant 3, our cache-clock</a></li>
+  <li><a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/cache-clock">Variant 3k on GitHub: cache-clock</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: <code>model.fork</code>, <code>turn.step</code>, <code>prompt.submit</code></a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0011-dictation-fixer.html">← 0011 Dictation fixer</a>
+  <a href="../index.html">Index</a>
+  <a href="0013-handoff.html">0013 Handoff →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0025: Human in the loop</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0025 · Human in the loop</p>
+<h1>Human in the loop</h1>
+<p class="lede">Human in the loop lets Claude hand you the tasks only you can do, and keeps each one in a My tasks pane until you answer it or reject it.</p>
+
+<dl class="meta">
+  <dt>Best version</dt>
+  <dd>human-in-the-loop (25), plugin 0.1.8 by Tzafrir Rehan. Source: <a href="https://github.com/tzafrir/human-in-the-loop">github.com/tzafrir/human-in-the-loop</a></dd>
+  <dt>Status</dt>
+  <dd>Cloned. <a href="https://github.com/tzafrir/human-in-the-loop/tree/main">Local copy in the scratchpad</a>.</dd>
+  <dt>Variants</dt>
+  <dd>25 only. FAMILIES.md lists no other IDs for this family.</dd>
+  <dt>Files</dt>
+  <dd><code>hooks/register.tsx</code> (2,125 lines, the main module), <code>hooks/tasks.ts</code>, <code>hooks/project.ts</code>, <code>hooks/pane.ts</code>, <code>hooks/text.ts</code>, <code>hooks/hooks.json</code>, <code>types/index.d.ts</code>, <code>tests/register.test.tsx</code>, <code>.claude-plugin/plugin.json</code>, <code>README.md</code></dd>
+  <dt>Hooks</dt>
+  <dd>15 events in <code>register.tsx</code>, among them <code>session.start</code>, <code>session.end</code>, <code>turn.start</code>, <code>turn.step</code>, <code>turn.complete</code>, <code>tool.describe</code>, <code>tool.call</code>, <code>prompt.submit</code>, <code>prompt.compose</code>, <code>prompt.context</code>, <code>command.run</code>, <code>ui.focus</code> and <code>ui.render</code></dd>
+  <dt>Calls</dt>
+  <dd>Examples: <code>$.tool.register</code>, <code>$.command.register</code>, <code>$.prompt.submit</code>, <code>$.prompt.fill</code>, <code>$.store.get</code> and <code>$.store.set</code>, <code>$.session.append</code>, <code>$.ui.toast</code>, <code>$.ui.resolve</code>. The file uses more than these.</dd>
+  <dt>Author and license</dt>
+  <dd>Tzafrir Rehan, MIT</dd>
+  <dt>Requires</dt>
+  <dd>Claude Code in a terminal or the desktop app's Code tab. Function hooks are early access.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>human-in-the-loop</code> 0.1.8, by tzafrir, MIT · upstream <a href="https://github.com/tzafrir/human-in-the-loop">https://github.com/tzafrir/human-in-the-loop</a>.<br>Install: <code>claude plugin install human-in-the-loop@waraxe-claude-mods</code> · folder <a href="../../plugins/human-in-the-loop/">plugins/human-in-the-loop</a> · <a href="../../plugins/human-in-the-loop/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Human in the loop gives Claude a tool called <code>assign_task</code>. When Claude needs something only you can do, it files a task. The task waits in a My tasks pane under the prompt, and your answer goes back to Claude as a message.</p>
+<p>For your mission, which asks you to name the hook events and calls a mod uses, this mod is a clear example of a function-hook mod that adds its own tools, a pane and a turn-end hook, all in its main module, <code>register.tsx</code>.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>25</td>
+      <td>human-in-the-loop (best version)</td>
+      <td>Assigns you tasks, shows them in a My tasks pane, and delivers your answers to Claude.</td>
+      <td>Cloned from <a href="https://github.com/tzafrir/human-in-the-loop">tzafrir/human-in-the-loop</a>. Local copy in the scratchpad.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The mod is one hooks module, <code>hooks/register.tsx</code>, which <code>hooks/hooks.json</code> names. The other files hold the logic. <code>tasks.ts</code> reads a task from Claude's call and sets what Claude is told. <code>project.ts</code> keeps each session's tasks in the project's store. <code>text.ts</code> holds the label helpers. The steps below use the main module, with line numbers.</p>
+
+<h3>1. Register the tools and the command (lines 327 to 336)</h3>
+<p>On <code>session.start</code>, the mod registers its tools with <code>$.tool.register</code>, which are <code>assign_task</code>, <code>list_tasks</code> and <code>withdraw_task</code>. It registers <code>/my-tasks</code> with <code>$.command.register</code>. Then <code>join</code> takes on the project's open tasks, which is how they carry over to a new session.</p>
+<pre><code>  on('session.start', async ($, e, next) =&gt; {
+    for (const tool of TOOLS) {
+      await $.tool.register(tool)
+    }
+
+    await $.command.register({ name: 'my-tasks', description: 'Show the tasks Claude gave you' })
+    await join($)
+
+    return next(e)
+  })</code></pre>
+
+<h3>2. Guard the assign call (lines 389 to 398)</h3>
+<p>When Claude calls <code>assign_task</code>, the <code>tool.call</code> hook refuses a call from a subagent. Only the main agent may assign tasks. Then it parses the input, and a bad input gets a <code>deny</code> with the parser's reason. A cap also applies. <code>MAX_OPEN</code> is 5, set in <code>tasks.ts</code>, and the check on lines 423 to 427 refuses a sixth open task.</p>
+<pre><code>  on('tool.call', { tool: ASSIGN }, async ($, e) =&gt; {
+    if (e.agentId !== undefined) {
+      return { deny: 'Only the main agent assigns tasks to the user. Say what you need from the user in your result instead.' }
+    }
+
+    const ask = parseAsk(e as unknown as Record&lt;string, unknown&gt;)
+
+    if ('error' in ask) {
+      return { deny: ask.error }
+    }</code></pre>
+
+<h3>3. Hold answers until Claude is free (lines 549 to 573)</h3>
+<p>On <code>turn.complete</code>, for the main loop only, the hook checks whether answers are waiting. It sends them when no task is still open, or when you pressed Send now. The send is <code>send($, true)</code>, and its message wakes Claude. Answers that arrive during a turn wait, so Claude is not interrupted. The rest of the handler, from line 574, handles one more case and is left out here.</p>
+<pre><code>  on('turn.complete', async ($, e, next) =&gt; {
+    const result = await next(e)
+
+    // Main's turn ending ends every turn; another loop's ends its own.
+    if (e.agentId === undefined) {
+      live.turns.clear()
+      live.engineWorking = false
+    } else {
+      live.turns.delete(e.turnId)
+    }
+
+    await syncWorking($)
+
+    if (e.agentId === undefined) {
+      // Answers saved while Claude worked go now that it's free, unless a
+      // task is still open: then they go with that last answer, together.
+      // One a prompt entered without goes with them, but sends nothing alone.
+      const all = await read($, tasks)
+      const isAllAnswered = all.some(task =&gt; task.update === 'pending' &amp;&amp; !live.held.has(updateKeyOf(task))) &amp;&amp; !all.some(isActive)
+
+      if (live.isSendingAtEnd || isAllAnswered) {
+        live.isSendingAtEnd = false
+        // This message wakes Claude, which reads any row it missed above it.
+        live.isUnread = false
+        void send($, true)</code></pre>
+
+<h3>4. Draw the pane (lines 746 to 753)</h3>
+<p>The <code>ui.render</code> hook for the <code>Pane</code> component draws the My tasks pane. It calls <code>$.ui.resolve(e)</code> to get the drawing parts, such as <code>Box</code>, <code>Text</code> and <code>Button</code>. It adds an <code>Input</code> only when the surface is not mobile, because the mobile app draws no answer field yet. A separate <code>ui.focus</code> hook (line 735) handles keyboard focus for the same pane.</p>
+<pre><code>  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) =&gt; {
+    const emptied = live.emptied.get(e.surface)
+    const elements = $.ui.resolve(e)
+    const { Box, Text, Button } = elements
+    // The mobile app draws no field yet: answers and reasons wait for a surface
+    // that does. The engine fills an element a surface lacks with one that draws
+    // nothing, so the surface says, not the table.
+    const Input = e.surface !== 'mobile' &amp;&amp; 'Input' in elements ? elements.Input : undefined</code></pre>
+
+<h2>How to use it</h2>
+<p>The marketplace and the plugin share the name <code>human-in-the-loop</code>. Run these in the shell:</p>
+
+<pre><code class="language-bash">claude plugin marketplace add tzafrir/human-in-the-loop
+claude plugin install human-in-the-loop@human-in-the-loop</code></pre>
+
+<p>Then start a new session, or run <code>/reload-plugins</code>.</p>
+
+<ul class="steps">
+  <li>Make sure function hooks are on. The README says the mod loads only where they are enabled. It does not name the setting.</li>
+  <li>Let Claude work. When it needs you, a task appears in My tasks, and the status line shows the count, such as <code>☐ 3 tasks for you · /my-tasks</code>.</li>
+  <li>Open the pane with <code>/my-tasks</code>, or press ctrl+x tab to give it the keyboard.</li>
+  <li>Answer with <code>d</code> (done), a number for an option, <code>r</code> (an answer) or <code>x</code> (reject, with a reason).</li>
+  <li>For a long answer, such as a log, use the Long answer button. It starts the prompt box, and you paste the text and press Enter.</li>
+</ul>
+
+<p><strong>What it costs.</strong> The README says the mod makes no network calls and runs no processes. The code makes no model calls. It adds three tools and a few lines to the system prompt. At the start of a conversation, or after a compaction, it also adds a short list of open tasks.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>At most 5 open tasks at a time. The same ask twice counts as one task.</li>
+  <li>Only the main agent assigns tasks. A subagent says what it needs in its result.</li>
+  <li>An answer that looks like a secret, such as an API key or a private key, is held with a warning before it is sent.</li>
+  <li>Function hooks are early access, so the API can change between releases.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>You answer a task while Claude is still working. When does Claude get the answer?</summary>
+  <p>When Claude finishes its turn, unless another task is still open. In that case the answer waits and arrives with that task's answer. Send now sends it straight away.</p>
+</details>
+<details class="check">
+  <summary>Claude tries to assign a sixth open task. What happens?</summary>
+  <p>The call is refused. <code>MAX_OPEN</code> is 5 in <code>tasks.ts</code>, and the refusal tells Claude to withdraw a task you no longer need, or wait for you to act.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/tzafrir/human-in-the-loop/blob/main/hooks/register.tsx">Main source: hooks/register.tsx</a></li>
+  <li><a href="https://github.com/tzafrir/human-in-the-loop/blob/main/README.md">The plugin's README, with the privacy notes</a></li>
+  <li><a href="https://github.com/tzafrir/human-in-the-loop">The repository on GitHub</a>, and the <a href="https://tzafrir.github.io/human-in-the-loop/">project page</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0024-you-should-know.html">← 0024 You Should Know</a>
+  <a href="../index.html">Index</a>
+  <a href="0026-diagram-pane.html">0026 Diagram pane →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

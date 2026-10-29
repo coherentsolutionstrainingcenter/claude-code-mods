@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0038: Model router</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0038 · Family</p>
+<h1>Model router</h1>
+<p class="lede">A mod that picks haiku, sonnet or opus for each subagent Claude starts without naming a model, from one small Haiku call. The main chat's model never changes.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt>
+  <dd><code>model-router</code> 0.1.0, written for this marketplace</dd>
+  <dt>Folder</dt>
+  <dd><code>plugins/model-router</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code> (registers <code>/model-router</code>), <code>command.run</code> (on, off and status), <code>agent.spawn</code> (picks the subagent's model)</dd>
+  <dt>Calls</dt>
+  <dd><code>$.model.classify</code> (one Haiku call per routed subagent), <code>$.command.register</code>, <code>$.store.get</code>, <code>$.store.set</code>, <code>$.ui.log</code></dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.ts</code> (94 lines), <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt>
+  <dd>Igor Waraxe, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>model-router</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install model-router@waraxe-claude-mods</code> · folder <a href="../../plugins/model-router/">plugins/model-router</a> · <a href="../../plugins/model-router/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>When Claude hands work to a subagent, it calls the Agent tool, and it often names no model. The subagent then runs on its type's model or the main chat's. model-router steps in at that moment. It sends the task's short description to Haiku, which sorts it as simple, standard or hard, and that one subagent runs on haiku, sonnet or opus. A dim line in the transcript names the label and the model. The main chat keeps its model, so nothing is reread.</p>
+<p>The router is off until you type <code>/model-router on</code>.</p>
+<p>It serves <a href="../MISSION.md">your mission</a> because a router decides where your task text goes, and you must be able to name that host before you publish: here it is one <code>$.model.classify</code> call through the session's own client, to Anthropic only.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>12</td><td>OpenRouter router</td><td>Uses OpenRouter, which needs a key. The synthesis says it sends prompts to a third party.</td><td>Video only: <a href="https://www.youtube.com/watch?v=moOBIaIb4a8">video</a> · <a href="../reference/mod-catalogue.html#m12">catalogue</a></td></tr>
+    <tr><td>12a</td><td>Auto Model</td><td>Its creator paused it, because switching models mid-chat makes Claude reread the whole chat.</td><td>Video only: <a href="https://www.youtube.com/watch?v=aD-h7Bcn5OY">video</a> · <a href="../reference/mod-catalogue.html#m12a">catalogue</a></td></tr>
+    <tr><td>12b</td><td>Model Router (sub-agent model router)</td><td>Sets the model for sub-agents, the helper agents that Claude starts. Graded 6, the highest of the three.</td><td>Video only: <a href="https://www.youtube.com/watch?v=uvIopT_2sY0">video</a> · <a href="../reference/mod-catalogue.html#m12b">catalogue</a></td></tr>
+    <tr><td>Ours</td><td>model-router</td><td>The 12b idea: picks haiku, sonnet or opus for each subagent started without a model, from one Haiku call on the task's description. Off by default. Never changes the main chat's model.</td><td>Here: <code>plugins/model-router</code>. MIT, shipped in this marketplace</td></tr>
+  </tbody>
+</table>
+<p>Another variant is hamzafer's switchboard (MIT). It routes with OpenAI's Decisions API instead of a Haiku call, so the task text goes to OpenAI too. Its plugins are not shipped here.</p>
+
+<h2>How it was built</h2>
+<p>The mod is one file, <code>hooks/register.ts</code>. The types offer two places to catch a spawn. A <code>tool.call</code> hook on <code>Agent</code> sees the tool's input, whose <code>model</code> is <code>"sonnet" | "opus" | "haiku" | "fable"</code> or absent. The <code>agent.spawn</code> event fires when the Agent tool is about to start an agent, before its model is resolved, and also says whether the spawn is a fork, a resume, a teammate or a workflow agent. The mod uses <code>agent.spawn</code>, and <code>next({ ...e, model })</code> sets the model for that one subagent.</p>
+
+<h3>1. Map three labels to three models</h3>
+<p>The labels are what the classifier may answer. <code>modelFor</code> turns a label into a model and returns <code>undefined</code> for anything else, including no answer.</p>
+<pre><code>const LABELS = ['simple', 'standard', 'hard'] as const
+type Label = (typeof LABELS)[number]
+type Choice = 'haiku' | 'sonnet' | 'opus'
+
+const MODEL_FOR: Record&lt;Label, Choice&gt; = { simple: 'haiku', standard: 'sonnet', hard: 'opus' }
+
+/** The model for a label the classifier named; undefined for anything else. */
+export function modelFor(label: string | undefined): Choice | undefined {
+  const known = LABELS.find(one =&gt; one === label)
+
+  return known === undefined ? undefined : MODEL_FOR[known]
+}</code></pre>
+
+<h3>2. Route only plain spawns</h3>
+<p>A model Claude named stays. A fork always inherits the parent's model, so a pick would be ignored. A resume cannot change its model. A teammate is a long-lived member of the session's team, and a workflow agent comes from a workflow script, not from Claude's Agent call. An empty description gives the classifier nothing to read.</p>
+<pre><code>/** A spawn the router may pick for: no model named, not a fork, a resume, a workflow agent or a teammate. */
+export function isRoutable(e: Pick&lt;AgentSpawnInput, 'model' | 'fork' | 'resume' | 'workflow' | 'isTeammate' | 'description'&gt;): boolean {
+  return (
+    e.model === undefined &amp;&amp;
+    !e.fork &amp;&amp;
+    e.resume === undefined &amp;&amp;
+    e.workflow === undefined &amp;&amp;
+    e.isTeammate !== true &amp;&amp;
+    e.description.trim() !== ''
+  )
+}</code></pre>
+
+<h3>3. Ask Haiku once</h3>
+<p>The hook reads the on or off switch first, so an off router makes no call. <code>$.model.classify</code> runs one completion with a fixed classifier prompt and treats the text as data. It resolves one of the labels, or <code>undefined</code> when the answer named none, and it rejects when the request fails. The <code>.catch</code> turns a failure into <code>undefined</code> and writes the reason to the debug log only.</p>
+<pre><code>  on('agent.spawn', async ($, e, next) =&gt; {
+    if (!isRoutable(e) || !(await isOn($))) return next(e)
+
+    const text = `Task given to a coding subagent: ${e.description}`
+    // A failed or empty answer leaves the call as Claude made it.
+    const label = await $.model.classify(text, LABELS, { model: 'haiku' }).catch((error: unknown) =&gt; {
+      $.ui.log(`model-router: the classifier failed (${String(error)})`, { to: 'debug' })
+
+      return undefined
+    })</code></pre>
+
+<h3>4. Set the model for this subagent only</h3>
+<p>No usable label means no change: the hook counts it and passes the spawn on as Claude made it. Otherwise it writes one line with <code>$.ui.log</code> and passes on a copy with the model. The input describes the subagent alone, and its <code>parentModel</code> is pinned, so the main chat's model cannot change here.</p>
+<pre><code>    const model = modelFor(label)
+    if (model === undefined) {
+      tally.unchanged += 1
+
+      return next(e)
+    }
+
+    tally[model] += 1
+    $.ui.log(`Model router: "${e.description}" is ${label}, so this subagent runs on ${model}.`)
+
+    // Only this spawn's model changes; the main chat keeps its own.
+    return next({ ...e, model })
+  })</code></pre>
+
+<h3>5. Off by default, with on, off and status</h3>
+<p>The switch lives in <code>$.store</code>, the mod's own store, and only the value <code>on</code> turns routing on, so a fresh install routes nothing. <code>status</code> reports the switch and a tally kept in the module since it loaded.</p>
+<pre><code>async function isOn($: EngineInterface): Promise&lt;boolean&gt; {
+  return (await $.store.get('mode')) === 'on'
+}
+
+  on('command.run', { command: 'model-router' }, async ($, e) =&gt; {
+    const asked = e.args.trim().toLowerCase()
+    if (asked === 'on' || asked === 'off') {
+      await $.store.set('mode', asked)
+
+      return {
+        text:
+          asked === 'on'
+            ? 'Model router is on: each subagent started without a model gets haiku, sonnet or opus.'
+            : 'Model router is off: subagents run on the model Claude or their type names.',
+      }
+    }
+    if (asked === 'status' || asked === '') {
+      const counts = `${tally.haiku} haiku, ${tally.sonnet} sonnet, ${tally.opus} opus, ${tally.unchanged} left unchanged`
+
+      return { text: `Model router is ${(await isOn($)) ? 'on' : 'off'}. Since it loaded: ${counts}.` }
+    }
+
+    return { text: 'Use /model-router on, off or status.' }
+  })</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install model-router@waraxe-claude-mods</code></pre>
+<ul class="steps">
+  <li>Type <code>/model-router on</code>. The router is off until you do.</li>
+  <li>Work as usual. Each subagent Claude starts without a model gets a line such as <code>Model router: "Refactor auth module" is hard, so this subagent runs on opus.</code></li>
+  <li>Type <code>/model-router status</code> to see whether it is on and how many subagents went to each model.</li>
+  <li>Type <code>/model-router off</code> to stop it.</li>
+</ul>
+<p><strong>Cost.</strong> Each routed subagent costs one Haiku call: the fixed classifier prompt, the few words of the description, and a one-word answer. The types do not give a token count. The model it picks matters more: a simple task on haiku costs less than on opus, and a hard task sent to opus from a Sonnet chat costs more than Sonnet would.</p>
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>The classifier sees only the short description (3 to 5 words), not the full prompt, so it can misjudge a task.</li>
+  <li>The pick also replaces an agent type's own model, the <code>model</code> in its definition, because the hook cannot read a type's own model.</li>
+  <li>A setting that forces one model on every subagent outranks the pick.</li>
+  <li>A failed call or an answer outside the three labels leaves the spawn unchanged.</li>
+  <li>A plugin's own <code>$.agent.spawn</code> with no model is routed too.</li>
+  <li>Each routed spawn waits for the Haiku call before the subagent starts.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the router hook <code>agent.spawn</code> and not change the session's model?</summary>
+  <p>A change to the main chat's model makes Claude reread the whole chat, which is why Auto Model (12a) was paused. <code>agent.spawn</code> describes one subagent about to start, and <code>next({ ...e, model })</code> sets that subagent's model alone. The parent's model is <code>parentModel</code>, which is pinned, and the mod hooks nothing that touches the main chat's requests.</p>
+</details>
+<details class="check">
+  <summary>The Haiku call fails, or Haiku answers "medium". What happens to the spawn?</summary>
+  <p>A failed call rejects, and the <code>.catch</code> logs the reason to the debug log and returns <code>undefined</code>. An answer outside the labels makes <code>$.model.classify</code> resolve <code>undefined</code>. Either way <code>modelFor</code> returns <code>undefined</code>, the hook adds one to the "left unchanged" count, and it returns <code>next(e)</code>, so the subagent starts as Claude asked.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="../../plugins/model-router/hooks/register.ts">The mod's source: hooks/register.ts</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: <code>AgentSpawnInput</code>, <code>$.model.classify</code>, the Agent tool's input</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0037-daily-challenge.html">← 0037 Daily challenge</a>
+  <a href="../index.html">Index</a>
+  <a href="0039-narrator.html">0039 Narrator →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

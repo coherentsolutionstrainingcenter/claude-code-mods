@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0020: Work inventory</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+  <style>
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+    th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+    th { font-family: system-ui, -apple-system, sans-serif; color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+
+  <p class="kicker">Lesson 0020 · Work inventory</p>
+  <h1>Work inventory</h1>
+  <p class="lede">mission-control adds <code>/mission</code>: a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.</p>
+
+  <dl class="meta">
+    <dt>Shipped plugin</dt>
+    <dd>mission-control 0.1.7, from <a href="https://github.com/hamzafer/claude-code-mods">hamzafer/claude-code-mods</a>, folder <code>mods/mission-control</code></dd>
+    <dt>Folder</dt>
+    <dd><code>plugins/mission-control</code></dd>
+    <dt>Hooks</dt>
+    <dd><code>session.start</code>, <code>turn.start</code>, <code>agent.spawn</code>, <code>tool.call</code>, <code>turn.complete</code>, <code>command.run</code> (<code>mission</code>), and <code>ui.render</code> for the <code>Pane</code> and <code>AbovePrompt</code> components</dd>
+    <dt>Calls</dt>
+    <dd><code>atom</code>, <code>read</code> and <code>update</code> from <code>'claude-code'</code>; <code>$.command.register()</code>, <code>$.clock.every()</code>, <code>$.clock.after()</code>, <code>$.env.get()</code>, <code>$.fs.read()</code>, <code>$.fs.write()</code>, <code>$.fs.exists()</code>, <code>$.model.complete()</code>, <code>$.process.run()</code>, <code>$.ui.open()</code>, <code>$.ui.close()</code>, <code>$.ui.panes()</code>, <code>$.ui.resolve()</code></dd>
+    <dt>Files</dt>
+    <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>hooks/tree.ts</code>, <code>hooks/map.ts</code>, <code>hooks/bands.ts</code>, <code>types/index.d.ts</code>, <code>tests/mission-control.test.tsx</code>, <code>tsconfig.json</code>, <code>LICENSE</code>. The folder has no README.</dd>
+    <dt>Author and licence</dt>
+    <dd>Hamza Zafar, per <code>plugin.json</code>. MIT, in the folder's <code>LICENSE</code>.</dd>
+  </dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>mission-control</code> 0.1.7, by Hamza Zafar, MIT · upstream <a href="https://github.com/hamzafer/claude-code-mods">https://github.com/hamzafer/claude-code-mods</a>.<br>Install: <code>claude plugin install mission-control@waraxe-claude-mods</code> · folder <a href="../../plugins/mission-control/">plugins/mission-control</a> · <a href="../../plugins/mission-control/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+  <h2>What it is</h2>
+  <p>mission-control opens a pane with two views of the current turn. Who is a tree of the main loop, its subagents and every tool call they make, live. Code is a drawn map of the files Claude reads and edits, with arrows for the imports between them, a glow on the file it touches now, and one line on each change. A band line above the prompt sums it up while Claude works.</p>
+  <p>It serves <a href="../MISSION.md">your mission</a> because it shows how four events, <code>turn.start</code>, <code>agent.spawn</code>, <code>tool.call</code> and <code>turn.complete</code>, build one shared picture, and where a mod calls a model and runs a process.</p>
+
+  <h2>Variants</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>6</td><td>chat-inventory by Ben AI<br><strong>Not shipped: no licence</strong></td><td>A side pane, In this chat, that lists the to-do list, connectors, context files and skills this chat used.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/benai-mods/plugins/chat-inventory">benai-mods/plugins/chat-inventory</a></td></tr>
+      <tr><td>6a</td><td>fake chat</td><td>Side pane where a Haiku-driven &quot;chat&quot; comments live on each file read, bash call and step Claude takes</td><td>Video only: <a href="https://www.youtube.com/watch?v=EiThSVZ8pME">video</a> · <a href="../reference/mod-catalogue.html#m6a">catalogue</a></td></tr>
+      <tr><td>6b</td><td>Filetree</td><td>An IDE-style file tree for Claude Code that shows what Claude is doing and where in files.</td><td>Cloned, MIT: <a href="https://github.com/data-goblin/claude-code-filetree">data-goblin/claude-code-filetree</a></td></tr>
+      <tr><td>6c</td><td>Mission Control<br><strong>Shipped in this marketplace</strong></td><td><code>/mission</code> opens a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.</td><td>Cloned, MIT: <a href="https://github.com/hamzafer/claude-code-mods">hamzafer/claude-code-mods</a>, folder <code>mods/mission-control</code>. Here: <code>plugins/mission-control</code></td></tr>
+      <tr><td>6d</td><td>Mission Control Plus</td><td>Cost and guard lanes, and export, per the synthesis notes.</td><td>Video only: <a href="https://www.youtube.com/watch?v=sepEsgD4q_8">video</a> · <a href="../reference/mod-catalogue.html#m6d">catalogue</a></td></tr>
+      <tr><td>6e</td><td>Focus Deck</td><td>A productivity timer, per the synthesis notes.</td><td>Video only: <a href="https://www.youtube.com/watch?v=Ig3k61xIEvc">video</a> · <a href="../reference/mod-catalogue.html#m6e">catalogue</a></td></tr>
+      <tr><td>6f</td><td>tool counter</td><td>A spinner that shows how many tools Claude has used, with a <code>/tally</code> command that prints the count. The video uses it as the docs example</td><td>Video only: <a href="https://www.youtube.com/watch?v=XaYubuLtW8M">video</a> · <a href="../reference/mod-catalogue.html#m6f">catalogue</a></td></tr>
+      <tr><td>6g</td><td>flight recorder</td><td>A request-by-request timeline, per the synthesis notes.</td><td>Video only: <a href="https://www.youtube.com/watch?v=uvIopT_2sY0">video</a> · <a href="../reference/mod-catalogue.html#m6g">catalogue</a></td></tr>
+      <tr><td>6h</td><td>output tray</td><td>A session output shelf for new files, per the synthesis notes.</td><td>Video only: <a href="https://www.youtube.com/watch?v=uvIopT_2sY0">video</a> · <a href="../reference/mod-catalogue.html#m6h">catalogue</a></td></tr>
+      <tr><td>6i</td><td>receipt</td><td><code>/receipt last</code> prints a short summary of every file created, with no panel</td><td>Video only: <a href="https://www.youtube.com/watch?v=uvIopT_2sY0">video</a> · <a href="../reference/mod-catalogue.html#m6i">catalogue</a></td></tr>
+      <tr><td>—</td><td>edits-pane by RocketLauncher Builds<br><strong>Not shipped: no licence</strong></td><td><code>/edits</code> opens a pane that lists every file Claude changed in this session, green for a change that went through and red for one that failed.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/claude-mods-starter-pack/edits-pane">claude-mods-starter-pack/edits-pane</a></td></tr>
+    </tbody>
+  </table>
+  <p>edits-pane comes from the RocketLauncher Builds starter pack. It has no ID in FAMILIES.md, so its row shows a dash. The pack has no LICENSE file.</p>
+
+  <h2>How it was built</h2>
+  <p><code>hooks/hooks.json</code> names one module, <code>register.tsx</code>. It holds the hooks. <code>tree.ts</code> turns the nodes into tree lines, <code>map.ts</code> draws the code map as SVG, and <code>bands.ts</code> stacks the band with other mods' bands. The steps follow one turn.</p>
+
+  <h3>1. Keep the picture in atoms</h3>
+  <p>An atom is a named value with a starting value. <code>nodes</code> is the tree, <code>files</code> the code map, <code>view</code> the open view, <code>frame</code> the last drawn picture, <code>turn</code> the turn number, and <code>now</code> the clock. The comment says the host holds them, so a hot reload keeps the picture.</p>
+  <pre><code>// Held by the host, so a hot reload keeps the picture.
+const nodes = atom({ plugin: 'mission-control', key: 'nodes' } as const, [] as MissionNode[])
+const files = atom({ plugin: 'mission-control', key: 'files' } as const, [] as MapFile[])
+const view = atom({ plugin: 'mission-control', key: 'view' } as const, 'who' as 'who' | 'code')
+const frame = atom({ plugin: 'mission-control', key: 'frame' } as const, null as { file: string; n: number } | null)
+const turn = atom({ plugin: 'mission-control', key: 'turn' } as const, 0)
+const now = atom({ plugin: 'mission-control', key: 'now' } as const, 0)</code></pre>
+
+  <h3>2. Register <code>/mission</code> and a clock</h3>
+  <p>On <code>session.start</code> the module notes whether it runs on Windows, registers <code>/mission</code> with the argument hint <code>[who|code]</code>, and starts a one-second timer. The timer moves <code>now</code> only while a node is running, so the pane's times tick and then rest.</p>
+  <pre><code>  on('session.start', async ($, e, next) =&gt; {
+    const r = await next(e)
+    isWindows = (await $.env.get('OS')) === 'Windows_NT'
+    await $.command.register({ name: 'mission', description: 'Open the live map of agents and tool calls; /mission code opens the code map', argumentHint: '[who|code]' }).catch(() =&gt; {})
+    timer?.cancel()
+    timer = $.clock.every(1000, () =&gt; {
+      void (async () =&gt; {
+        const busy = (await read($, nodes)).some(n =&gt; n.status === 'running')
+        if (busy) await update($, now, () =&gt; Date.now())
+      })().catch(() =&gt; {})
+    })
+    return r
+  })</code></pre>
+
+  <h3>3. Start a fresh tree each turn</h3>
+  <p><code>turn.start</code> counts the turn and clears last turn's changes. The tree restarts with a main node named after the prompt, cut at a word to about 50 characters. A background agent still running from the last turn carries over, with its open calls.</p>
+  <pre><code>  on('turn.start', async ($, e, next) =&gt; {
+    const t = (await read($, turn)) + 1
+    await update($, turn, () =&gt; t)
+    changes.clear()
+    const main: MissionNode = { id: 'main', parent: null, kind: 'main', label: `main · ${words(e.text, 50)}`, family: 'main', status: 'running', start: Date.now() }
+    // A background agent still running from the last turn carries over, with its open calls.
+    await update($, nodes, list =&gt; {
+      const agents = list.filter(n =&gt; n.kind === 'agent' &amp;&amp; n.status === 'running').map(a =&gt; ({ ...a, parent: 'main' }))
+      const ids = new Set(agents.map(a =&gt; a.id))
+      const open = list.filter(n =&gt; n.kind === 'tool' &amp;&amp; n.status === 'running' &amp;&amp; ids.has(n.parent ?? ''))
+      return [main, ...agents, ...open]
+    })
+    return next(e)
+  })</code></pre>
+
+  <h3>4. Hang each subagent on its parent</h3>
+  <p><code>agent.spawn</code> calls <code>next(e)</code> first, so the subagent starts. The answer carries its <code>agentId</code>. The new node hangs under <code>parentAgentId</code>, or under main. <code>cap</code> keeps at most 300 nodes, and drops the oldest tool calls first.</p>
+  <pre><code>  on('agent.spawn', async ($, e, next) =&gt; {
+    const r = await next(e)
+    if (r.agentId) {
+      const id = r.agentId
+      const agent: MissionNode = { id, parent: e.parentAgentId ?? 'main', kind: 'agent', label: e.description || e.subagentType, family: 'agent', status: 'running', start: Date.now() }
+      await update($, nodes, list =&gt; cap([...list, agent]))
+    }
+    return r
+  })</code></pre>
+
+  <h3>5. Add each tool call, then mark how it ended</h3>
+  <p>The hook skips the <code>Agent</code> tool, because its subagent shows up through <code>agent.spawn</code>. It also skips Claude Code's own bookkeeping tools, such as <code>ToolSearch</code> and <code>TaskCreate</code>. Each other call becomes a running node, and a call with a <code>file_path</code> is noted on the code map. After <code>next(e)</code>, the node is marked failed when the result has <code>deny</code> or <code>isError</code>, and done otherwise. A successful Edit or Write keeps a short copy of the change for step 6.</p>
+  <pre><code>  on('tool.call', async ($, e, next) =&gt; {
+    if (e.tool === 'Agent') return next(e) // its subagent shows up through agent.spawn
+    if (INTERNAL.has(e.tool)) return next(e) // bookkeeping, not work a person would follow
+    const args = e as unknown as Record&lt;string, unknown&gt;
+    const { label: text, family } = label(args)
+    const id = e.tool_use_id
+    await update($, nodes, list =&gt; {
+      // A call from an agent this tree does not know hangs off main rather than nowhere.
+      const parent = e.agentId &amp;&amp; list.some(n =&gt; n.id === e.agentId) ? e.agentId : 'main'
+      return cap([...list, { id, parent, kind: 'tool', label: text, family, status: 'running', start: Date.now() }])
+    })
+    const raw = typeof args.file_path === 'string' ? args.file_path : undefined
+    const path = raw &amp;&amp; isWindows ? raw.replace(/\\/g, '/') : raw // one separator, so names and imports resolve
+    if (path) await touch($, path, e.tool === 'Read' ? 'read' : e.tool === 'Write' ? 'write' : e.tool === 'Edit' ? 'edit' : 'search', false)
+
+    let failed = true
+    let r: Awaited&lt;ReturnType&lt;typeof next&gt;&gt;
+    try {
+      r = await next(e)
+      failed = r.deny !== undefined || r.isError === true
+    } finally {
+      await update($, nodes, list =&gt; list.map(n =&gt; (n.id === id ? { ...n, status: failed ? 'failed' : 'done', end: Date.now() } : n)))
+    }
+    if (path &amp;&amp; !failed &amp;&amp; (e.tool === 'Edit' || e.tool === 'Write')) {
+      const what = e.tool === 'Edit' ? `- ${String(args.old_string ?? '').slice(0, 300)}\n+ ${String(args.new_string ?? '').slice(0, 300)}` : `wrote ${String(args.content ?? '').slice(0, 400)}`
+      const list = [...(changes.get(path) ?? []), what]
+      changes.set(path, list.length &gt; MAX_CHANGES ? [list[0]!, ...list.slice(1 - MAX_CHANGES)] : list) // the first edit and the latest few
+      await touch($, path, e.tool === 'Edit' ? 'edit' : 'write', true)
+    }
+    return r
+  })</code></pre>
+
+  <h3>6. Write one line per changed file with Haiku</h3>
+  <p>When the main turn ends, <code>turn.complete</code> starts <code>explain</code> in the background, so the turn ends at once. <code>explain</code> makes one <code>$.model.complete</code> call to Haiku, with at most 400 tokens out. It sends the last two parts of each changed file's path and the text of its changes, and asks for a JSON array of short lines. The answers are matched by position. An answer that arrives after the next turn started is dropped.</p>
+  <pre><code>async function explain($: EngineInterface, forTurn: number, edits: Map&lt;string, string[]&gt;) {
+  if (edits.size === 0) return
+  const paths = [...edits.keys()]
+  const plain = (t: string) =&gt; t.replace(/[&lt;&gt;"]/g, ' ')
+  const body = paths.map((p, i) =&gt; `&lt;file n="${i + 1}" name="${plain(p.split('/').slice(-2).join('/'))}"&gt;\n${plain((edits.get(p) ?? []).join('\n').slice(0, 1500))}\n&lt;/file&gt;`).join('\n')
+  const r = await $.model.complete({
+    model: 'haiku',
+    maxTokens: 400,
+    system: 'For each file, say in plain words what changed, at most 60 characters, no em dashes. Reply with a JSON array of strings only, one per file, in the same order.',
+    prompt: `${body}\n\nReply with the JSON array only: ${paths.length} strings.`,
+  })
+  if (!r.isAnswered) return
+  let whys: unknown
+  try {
+    whys = JSON.parse(r.text.slice(r.text.indexOf('['), r.text.lastIndexOf(']') + 1))
+  } catch {
+    return
+  }
+  if (!Array.isArray(whys)) return
+  // By position, so nothing has to match a path the model may have rewritten.
+  const byPath = new Map(paths.map((p, i) =&gt; [p, typeof whys[i] === 'string' ? (whys[i] as string).replace(/\s*—\s*/g, ', ').slice(0, 80) : undefined]))
+  // A slow answer from an earlier turn must not label this turn's changes.
+  if ((await read($, turn)) !== forTurn) return
+  await update($, files, list =&gt; list.map(f =&gt; (byPath.get(f.path) &amp;&amp; f.changedTurn === forTurn ? { ...f, why: byPath.get(f.path) } : f)))
+  await renderSoon($)
+}</code></pre>
+
+  <h3>7. Draw the code map with headless Chrome</h3>
+  <p><code>renderMap</code> writes the map as an SVG file, then runs Chrome or Chromium headless to take a PNG screenshot of it. The comment says Chrome uses its own throwaway profile, never your browser. The two PNG files take turns, so the one on screen is never half written. The pane shows the PNG with an <code>Image</code>. <code>renderSoon</code> draws only while the code view is open in a placed pane, after a short wait.</p>
+  <pre><code>  const tmp = ((await $.env.get('TMPDIR').catch(() =&gt; undefined)) ?? '/tmp').replace(/\/$/, '')
+  const dir = `${tmp}/mission-control`
+  const n = ++draw.n
+  const width = Math.round(draw.size.columns * 9)
+  const height = Math.round(draw.size.rows * 19)
+  const svgPath = `${dir}/map.svg`
+  const png = `${dir}/map-${n % 2}.png` // two files in turn, so the shown one is never half written
+  await $.fs.write(svgPath, svg(await read($, files), { width, height, at: Date.now(), turn: await read($, turn) }))
+  // Headless Chrome writes the screenshot but does not always exit: wait for the file,
+  // then close that Chrome (its own throwaway profile, never the person's browser).
+  const script =
+    'mkdir -p "$(dirname "$2")"; rm -f "$2"; "$1" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 --no-first-run --no-default-browser-check ' +
+    '--user-data-dir="$3" --window-size="$4" --screenshot="$2" "$5" &gt;/dev/null 2&gt;&amp;1 &amp; pid=$!; ' +
+    'i=0; while [ ! -s "$2" ] &amp;&amp; [ $i -lt 150 ]; do sleep 0.1; i=$((i+1)); done; sleep 0.2; pkill -P $pid 2&gt;/dev/null; kill $pid 2&gt;/dev/null; [ -s "$2" ]'
+  const r = await $.process.run(['sh', '-c', script, 'mission-control', chrome, png, `${dir}/chrome`, `${width},${height}`, `file://${encodeURI(svgPath)}`], { timeoutMs: 20_000 })
+  if (r.exitCode === 0) {
+    await update($, frame, () =&gt; ({ file: png, n }))
+    return
+  }
+  draw.error = `${chrome} could not draw the code map.`
+  await update($, now, () =&gt; Date.now()) // redraw the pane with the message
+}</code></pre>
+
+  <h2>How to use it</h2>
+  <pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install mission-control@waraxe-claude-mods</code></pre>
+  <p>Replace <code>&lt;org&gt;</code> with the GitHub owner of this marketplace. The marketplace README says to run <code>/reload-plugins</code> or start a new session after the install.</p>
+  <p>The plugin folder has no README of its own. The notes below come from the upstream repository's README and <code>docs/mods.md</code>, checked against the source.</p>
+
+  <ul class="steps">
+    <li>Type <code>/mission</code> to open the pane. <code>/mission code</code> opens straight to the code map, and <code>/mission who</code> to the agents.</li>
+    <li>In the pane, press <code>w</code> for Who, <code>c</code> for Code and <code>q</code> to close.</li>
+    <li>On the code map, a file glows blue while Claude reads it, orange while it edits it, and turns green with a check once changed.</li>
+    <li>While Claude works, and for 30 seconds after, a band above the prompt reads <code>◈ mission:</code> with the agents, tool calls, failures and files changed.</li>
+    <li>Commands: <code>/mission</code> only. Settings: none. The manifest declares no <code>userConfig</code>.</li>
+    <li>Cost: one Haiku call after each main turn that changed files, with at most 400 output tokens. The Who view and the band call no model.</li>
+  </ul>
+
+  <h3>Limits</h3>
+  <ul class="steps">
+    <li>The Code view runs on macOS and Linux. It needs Google Chrome or Chromium, and a terminal that shows images. The upstream notes name Ghostty, kitty and iTerm2.</li>
+    <li>On Windows, the Code view lists the map as lines, and <code>b</code> opens the drawn map in your browser. The Who view works everywhere.</li>
+    <li>On the desktop surface, the Code view says only "The code map draws in the terminal."</li>
+    <li>The code map keeps the 14 newest files, and only code, config and docs files. Images and binaries are left out.</li>
+    <li>The text of each change goes to Haiku: up to 300 characters of the old and new text of an edit, or 400 of a written file, and at most 1,500 characters per file.</li>
+    <li>The map files are written under <code>$TMPDIR/mission-control</code>, or <code>/tmp/mission-control</code>. On Windows the page is <code>mission-control-map.html</code> in <code>TEMP</code>.</li>
+  </ul>
+
+  <h2>Check yourself</h2>
+
+  <details class="check">
+    <summary>Why does the <code>tool.call</code> hook pass the <code>Agent</code> tool straight to <code>next(e)</code>?</summary>
+    <p>The comment says its subagent shows up through <code>agent.spawn</code>. That hook adds the agent as its own node, with its <code>agentId</code>. The subagent's own tool calls carry that id, so they hang under its node.</p>
+  </details>
+
+  <details class="check">
+    <summary>Haiku's answer for turn 4 arrives after turn 5 has started. What happens to it?</summary>
+    <p>It is dropped. <code>explain</code> reads <code>turn</code> again and returns when it is no longer <code>forTurn</code>. The comment says a slow answer from an earlier turn must not label this turn's changes.</p>
+  </details>
+
+  <h2>Go further</h2>
+  <ul>
+    <li>Main hook file: <a href="../../plugins/mission-control/hooks/register.tsx">plugins/mission-control/hooks/register.tsx</a></li>
+    <li>Upstream repository: <a href="https://github.com/hamzafer/claude-code-mods">github.com/hamzafer/claude-code-mods</a>, folder <code>mods/mission-control</code></li>
+    <li>API types for <code>agent.spawn</code>, <code>tool.call</code>, <code>$.model.complete</code> and <code>Pane</code>: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a></li>
+    <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+    <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+  </ul>
+
+  <nav class="lesson-nav">
+  <a href="0019-work-panel.html">← 0019 Work panel</a>
+  <a href="../index.html">Index</a>
+  <a href="0021-test-fail-magnet.html">0021 Test-fail magnet →</a>
+</nav>
+
+  <p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

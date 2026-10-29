@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0033: Claude Skins</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0033 · Family</p>
+<h1>Claude Skins</h1>
+<p class="lede">Claude Skins redraws the Claude Code transcript, so tool calls, edits, code, tables and charts each get their own cards and colours.</p>
+
+<dl class="meta">
+  <dt>Best version</dt><dd>skins 0.5.15 (ID 20), by hellosverre: <a href="https://github.com/hellosverre/claude-skins">github.com/hellosverre/claude-skins</a></dd>
+  <dt>Status</dt><dd>Cloned. A copy of the repo, <code>main</code> at commit <code>985ad63</code>, is in the scratchpad.</dd>
+  <dt>Variants</dt><dd>20 only. FAMILIES.md lists no other variant for this family.</dd>
+  <dt>Files</dt><dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, the entry module <code>hooks/register.tsx</code>, helper modules in <code>hooks/</code>, and <code>types/index.d.ts</code></dd>
+  <dt>Author and license</dt><dd>hellosverre, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>skins</code> 0.5.15, by hellosverre, MIT · upstream <a href="https://github.com/hellosverre/claude-skins">https://github.com/hellosverre/claude-skins</a>.<br>Install: <code>claude plugin install skins@waraxe-claude-mods</code> · folder <a href="../../plugins/skins/">plugins/skins</a> · <a href="../../plugins/skins/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Claude Skins is a plugin named <code>skins</code>. It changes how Claude Code draws the transcript. Tool calls become rows with icons and timings, and edits become diff cards. Code, tables and Mermaid charts become cards too, and <code>/skin</code> switches between the 16 built-in skins while a session runs.</p>
+<p>It matters for your mission because it draws over Claude Code's own rows, so it shows which hook events and API calls a large mod depends on, and why.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>20</td><td>Claude Skins (plugin <code>skins</code>)</td><td>Redraws tool rows, diffs, code, tables, charts and the usage band, with a live <code>/skin</code> switch.</td><td>Cloned: <a href="https://github.com/hellosverre/claude-skins">github.com/hellosverre/claude-skins</a></td></tr>
+  </tbody>
+</table>
+<p>The plugin's own description says fifteen themes. Its README lists sixteen skin names, so this page uses sixteen.</p>
+
+<h2>How it was built</h2>
+<p>The entry point is <code>hooks/hooks.json</code>. It names one module, <code>hooks/register.tsx</code>. That file exports <code>register</code>, which receives <code>on</code>, and every handler is subscribed through it. Across the file, the mod subscribes to 13 engine events and adds one event of its own, <code>skins.markdown</code>.</p>
+
+<h3>1. Declare the plugin and its one module</h3>
+<p><code>plugin.json</code> gives the name, version, author and license. <code>hooks.json</code> lists the module the engine loads.</p>
+<pre><code>{
+  "name": "skins",
+  "version": "0.5.15",
+  "description": "Skins for Claude Code: tool rows that open onto their input and answer, highlighted code, diff, table, math, Mermaid and shell cards, links, folding, a usage band, a calm mode and fifteen themes. /skin swaps them live.",
+  "author": { "name": "hellosverre", "url": "https://github.com/hellosverre" },
+  "license": "MIT",
+  "keywords": ["claude-code-mods", "claude-mods", "function-hooks", "theme", "skin"],
+  "types": "./types/index.d.ts"
+}</code></pre>
+<pre><code>{
+  "modules": ["./register.tsx"]
+}</code></pre>
+
+<h3>2. Add a markdown service for other mods</h3>
+<p>The <code>engine.create</code> handler adds a <code>skins</code> object to <code>$</code>. Its <code>markdown</code> method is only a placeholder. The real work happens on the <code>skins.markdown</code> event, and the handler below answers it.</p>
+<pre><code>export const register: Register = on =&gt; {
+  // Adds `$.skins` for other mods. A call is the `skins.markdown` event, which the hook
+  // below answers with this session's `$`; the method itself is the chain's floor.
+  on('engine.create', async ($, e, next) =&gt; {
+    const built = await next(e)
+
+    return { ...built, skins: { markdown: async () =&gt; undefined } }
+  })
+
+  on('skins.markdown', async ($, e) =&gt; ({ value: await drawMarkdown($, e) }))</code></pre>
+
+<h3>3. Register the /skin command and the design tool</h3>
+<p>On <code>session.start</code>, the mod registers the <code>/skin</code> command. It then registers a tool named <code>design</code>. The code waits at most <code>DESIGN_TOOL_WAIT_MS</code>, which is 1000 milliseconds, for that registration to finish.</p>
+<pre><code>    await $.command.register({
+      name: 'skin',
+      description: 'Open the skin settings, or /skin &lt;name | list | help | off&gt;',
+      argumentHint: '[help | gallery | copy | copy code | name | list | off | calm | pin | unpin | share | rail | tables | shimmer | band | countdown | clip | markdown | quiet | charts | math | commands | shell | highlight | hints | links | fold | expand | compact | icons | prompt | words]',
+      immediate: true,
+    })
+    const designTool = $.tool
+      .register({
+        name: DESIGN_TOOL.name,
+        description: DESIGN_TOOL.description,
+        inputSchema: DESIGN_TOOL.inputSchema,
+      })
+      .catch((error: unknown) =&gt; {
+        $.ui.log(`design tool: ${error instanceof Error ? error.message : String(error)}`, { to: 'debug' })
+      })</code></pre>
+
+<h3>4. Answer the design tool in a tool.call hook</h3>
+<p>A <code>tool.call</code> hook filtered by <code>{ tool: DESIGN_MATCH }</code> handles the design tool. If the outcome is an error, the hook returns <code>deny</code>. Otherwise it saves the new state and returns <code>result</code>. A first <code>tool.call</code> hook, which runs for every tool, records how long each call took. For write calls, it also records which files changed.</p>
+<pre><code>  on('tool.call', { tool: DESIGN_MATCH }, async ($, e) =&gt; {
+    const outcome = runDesign(e, await designState($))
+
+    if (outcome.isError) {
+      return { deny: outcome.text }
+    }
+
+    await commit($, outcome.state)
+
+    return { result: outcome.text }
+  })</code></pre>
+
+<h3>5. Draw the tool rows with ui.render</h3>
+<p>The <code>ToolUse</code> component draws each tool row. The mod draws its own row only when <code>kindOf</code> knows the tool. Otherwise it calls <code>next(e)</code>, and Claude Code's own row stays. The row reads its time from a stored atom, and it reads the changed-line counts from the tool's output.</p>
+<pre><code>  on('ui.render', { component: 'ToolUse' }, async ($, e, next) =&gt; {
+    const kind = kindOf(e.props.tool)
+    const active = await activeSkin($)
+
+    if (kind === null || active === null) {
+      return next(e)
+    }
+
+    const cwd = await cwdOf($)
+    const ms = e.props.isRunning ? -1 : await read($, memberOf(durationAtom, e))
+    const diff = diffstat(e.props.output)
+    const target = summarize(e.props.tool, e.props.input, cwd)
+
+    const meta = {
+      ...(ms &gt;= 0 &amp;&amp; !e.props.isRunning ? { ms } : {}),
+      ...(diff === null ? {} : diff),
+    }</code></pre>
+
+<h3>6. Draw the usage band above the prompt</h3>
+<p>The <code>AbovePrompt</code> component draws the usage meters. It returns <code>next(e)</code> when the band is off, when a survey is showing, or when there are no meters. Otherwise it draws the band.</p>
+<pre><code>  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =&gt; {
+    const active = await activeSkin($)
+    const usage = await read($, usageAtom)
+    // Drawn from the clock so a countdown switched on shows at once; reading the atom
+    // redraws the band when the minute tick changes one.
+    const countdowns = active?.prefs.countdown === true ? (await read($, countdownsAtom), countdownsOf(usage, await $.clock.now())) : {}
+    const meters = metersOf(usage, countdowns)
+
+    if (active === null || !active.prefs.band || e.props.hasSurvey || meters.length === 0) {
+      return next(e)
+    }</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add hellosverre/claude-skins
+claude plugin install skins@hellosverre-mods</code></pre>
+<p>The README shows the same two commands typed inside Claude Code, with a slash in front. Restart Claude Code after the install.</p>
+
+<ul class="steps">
+  <li><strong>Start.</strong> The noir skin is on after the restart. Type <code>/skin</code> to open the settings pane, or <code>/skin tokyo-night</code> to switch by name. <code>/skin list</code> shows every skin and setting.</li>
+  <li><strong>Turn it off or calm it.</strong> <code>/skin off</code> returns Claude Code's own drawing. <code>/skin calm</code> removes motion and folds read-only output to one line. <code>/skin calm off</code> puts back what you had.</li>
+  <li><strong>Design your own.</strong> Ask for a skin in plain words. Claude calls the design tool, which builds the skin and applies it. Repainting a built-in skin saves a copy named <code>my-&lt;skin&gt;</code>.</li>
+  <li><strong>What it costs.</strong> The drawing is local. The README says the stored conversation and what the model reads stay untouched. When charts are on, Claude gets a short model-only note, which the README estimates at about 130 tokens. That note is never sent in headless <code>claude -p</code> runs.</li>
+  <li><strong>Update check.</strong> The mod asks for the latest release over HTTP, once a day. The check starts off the session's critical path, so a slow or offline network does not hold the session up.</li>
+  <li><strong>Limits.</strong> The README says it was checked by hand on Windows and run on Linux. macOS, VS Code and mobile have not been checked by hand. Agents, plan mode, todos and the permission prompt keep Claude Code's own rows. File paths are coloured but not clickable. Code cards past 80 lines are cut, and Copy takes the full text.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Which event answers the design tool, and what does the hook return when the design is invalid?</summary>
+  <p>It is <code>tool.call</code>, filtered to the design tool with <code>{ tool: DESIGN_MATCH }</code>. When the outcome has an error, it returns <code>{ deny: outcome.text }</code>. Otherwise it saves the state and returns <code>{ result: outcome.text }</code>.</p>
+</details>
+<details class="check">
+  <summary>Why does the session start wait for the design tool, and for how long at most?</summary>
+  <p>It waits for the design tool to register. The wait is capped at <code>DESIGN_TOOL_WAIT_MS</code>, which is 1000 milliseconds. It also ends early when the registration finishes or fails, because the <code>catch</code> still resolves it.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/hellosverre/claude-skins/blob/main/hooks/register.tsx">The entry module, in the local clone: <code>hooks/register.tsx</code></a></li>
+  <li><a href="https://github.com/hellosverre/claude-skins/blob/main/README.md">The README, in the local clone</a></li>
+  <li><a href="https://github.com/hellosverre/claude-skins">The repo on GitHub</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0032-today-report.html">← 0032 Today&#x27;s report</a>
+  <a href="../index.html">Index</a>
+  <a href="0034-next-steps.html">0034 Next steps →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

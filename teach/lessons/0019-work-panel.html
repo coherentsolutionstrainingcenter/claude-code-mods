@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0019: Work panel</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+  <style>
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+    th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+    th { font-family: system-ui, -apple-system, sans-serif; color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+
+  <p class="kicker">Lesson 0019 · Work panel</p>
+  <h1>Work panel</h1>
+  <p class="lede">savvy-progress shows a progress bar above the prompt and a live panel of subagents: running, finished and planned, with model, task progress, context, estimated cost and time.</p>
+
+  <dl class="meta">
+    <dt>Shipped plugin</dt>
+    <dd>savvy-progress 1.2.1, from <a href="https://github.com/JohnnyVizz/claude-kit">JohnnyVizz/claude-kit</a>, folder <code>plugins/savvy-progress</code></dd>
+    <dt>Folder</dt>
+    <dd><code>plugins/savvy-progress</code></dd>
+    <dt>Hooks</dt>
+    <dd><code>session.start</code>, <code>command.run</code> (<code>agents-info</code>), <code>tool.call</code> three times (the progress tool, the step tool, and <code>Agent</code>), <code>agent.spawn</code>, <code>turn.step</code>, <code>turn.complete</code>, and <code>ui.render</code> for the <code>Pane</code> and <code>AbovePrompt</code> components</dd>
+    <dt>Calls</dt>
+    <dd><code>atom</code>, <code>read</code> and <code>update</code> from <code>'claude-code'</code>; <code>$.tool.register()</code>, <code>$.command.register()</code>, <code>$.clock.every()</code>, <code>$.clock.now()</code>, <code>$.settings.read()</code>, <code>$.env.get()</code>, <code>$.ui.open()</code>, <code>$.ui.close()</code>, <code>$.ui.panes()</code>, <code>$.ui.resolve()</code></dd>
+    <dt>Files</dt>
+    <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>hooks/register.test.ts</code>, <code>hooks/band.test.tsx</code>, <code>hooks/caller.test.ts</code>, <code>hooks/cost.test.ts</code>, <code>types/index.d.ts</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+    <dt>Author and licence</dt>
+    <dd>JohnnyVizz (written <code>johnnyvizz</code> in <code>plugin.json</code>). MIT, in the folder's <code>LICENSE</code> and in <code>plugin.json</code>.</dd>
+  </dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>savvy-progress</code> 1.2.1, by JohnnyVizz, MIT · upstream <a href="https://github.com/JohnnyVizz/claude-kit">https://github.com/JohnnyVizz/claude-kit</a>.<br>Install: <code>claude plugin install savvy-progress@waraxe-claude-mods</code> · folder <a href="../../plugins/savvy-progress/">plugins/savvy-progress</a> · <a href="../../plugins/savvy-progress/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+  <h2>What it is</h2>
+  <p>The README says the plugin was made for the savvy-flow skill and is useful with any subagents. The bar shows the flow's title, its phase, accepted tasks out of planned ones, and a button with the crew size that opens the panel. The panel lists every subagent of the session, with model, effort, task progress, context, estimated cost and time. The savvy-flow skill itself is not in this marketplace.</p>
+  <p>It serves <a href="../MISSION.md">your mission</a> because it uses seven hook events, two tools of its own and a prompt change, and each one has a reason you can name.</p>
+
+  <h2>Variants</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>2</td><td>helper-desk by Ben AI<br><strong>Not shipped: no licence</strong></td><td>A purple to-do progress bar above the prompt, and a side pane with one live card per subagent.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/benai-mods/plugins/helper-desk">benai-mods/plugins/helper-desk</a></td></tr>
+      <tr><td>2a</td><td>savvy-progress<br><strong>Shipped in this marketplace</strong></td><td>A progress bar above the prompt and a live panel of subagents, made for the savvy-flow skill. Its costs are estimates.</td><td>MIT: <a href="https://github.com/JohnnyVizz/claude-kit">github.com/JohnnyVizz/claude-kit</a>, folder <code>plugins/savvy-progress</code>. Here: <code>plugins/savvy-progress</code></td></tr>
+      <tr><td>2b</td><td>vibe bar</td><td>Not confirmed: no description on disk.</td><td>Video only: <a href="https://www.youtube.com/watch?v=moOBIaIb4a8">video</a> · <a href="../reference/mod-catalogue.html#m2b">catalogue</a></td></tr>
+      <tr><td>2e</td><td>agent side pane</td><td>Lists agents, including idle ones (per synthesis).</td><td>Video or ray repo. Not in the local clones, so not checked.</td></tr>
+      <tr><td>2e.1</td><td>agent flow</td><td>Shows success or failure for each agent (per synthesis).</td><td>Video or ray repo. Not checked.</td></tr>
+      <tr><td>2f</td><td>Goal Meter by Nate Herk<br><strong>Not shipped: one plugin per lesson</strong></td><td>A progress bar for <code>/goal</code> built from Claude's own task plan: tasks done out of the plan, elapsed time, an ETA at the goal's own pace, and every chat's goal in <code>/goals</code>.</td><td>Local, MIT: <a href="file:///Users/igorwaraxe/Downloads/nateherk-claude-code-mods/goal-meter">nateherk-claude-code-mods/goal-meter</a></td></tr>
+      <tr><td>2g</td><td>team-tracker</td><td>A Team pane: a progress bar for the to-do list, and each helper with what it works on, how long it has run and a rough cost.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/wearenocode-claude-mods/team-tracker">wearenocode-claude-mods/team-tracker</a></td></tr>
+      <tr><td>2h</td><td>Flightdeck</td><td>A live agent dashboard: context and cost, every permission check, and subagents as cards or swimlanes.</td><td>Cloned: <a href="https://github.com/scasella/claude-flightdeck">github.com/scasella/claude-flightdeck</a></td></tr>
+      <tr><td>2i</td><td>clean view</td><td>Hides noise and shows a checklist (per synthesis).</td><td>Video or ray repo. Not checked.</td></tr>
+      <tr><td>2j</td><td>Agent Dock</td><td>Sets team size and helper model for each prompt (per synthesis).</td><td>Video or ray repo. Not checked.</td></tr>
+      <tr><td>2k</td><td>aquarium</td><td>Not confirmed: name only, no description on disk.</td><td>Video or ray repo. Not checked.</td></tr>
+      <tr><td>2l</td><td>swarm pane</td><td>Built for swarms of 100 agents (per synthesis).</td><td>Video or ray repo. Not checked.</td></tr>
+    </tbody>
+  </table>
+  <p>"Per synthesis" means the description comes from MODS-FINAL-SYNTHESIS.md. It has not been checked against the video or the repo. The 2f description comes from the goal-meter <code>plugin.json</code>. Goal Meter is MIT, but this marketplace ships one plugin per lesson. Variant 2b also appears in lesson 0043, Panels and toys.</p>
+
+  <h2>How it was built</h2>
+  <p>Everything is in one module, <code>hooks/register.tsx</code>. <code>hooks/hooks.json</code> names it with <code>{ "modules": ["./register.tsx"] }</code>. The steps follow one flow, from the tools to the drawn bar.</p>
+
+  <h3>1. Keep the flow, the runs and the panel in atoms</h3>
+  <p>An atom is a named value with a starting value. <code>flow</code> is the plan the main session reports. <code>agents</code> is one record per subagent run. <code>panel</code> holds the panel's toggles. <code>now</code> is the clock the drawings read. <code>types/index.d.ts</code> gives each key its type.</p>
+  <pre><code>const flow = atom({ plugin: 'savvy-progress', key: 'flow' } as const, null)
+const agents = atom({ plugin: 'savvy-progress', key: 'agents' } as const, [])
+const panel = atom({ plugin: 'savvy-progress', key: 'panel' } as const, {
+  isCompact: false,
+  isDoneCollapsed: false,
+  autoOpenedFor: '',
+})
+const now = atom({ plugin: 'savvy-progress', key: 'now' } as const, 0)</code></pre>
+
+  <h3>2. Register the two tools and the command</h3>
+  <p>On <code>session.start</code> the module registers a <code>progress</code> tool, the <code>step</code> tool below, and the <code>/agents-info</code> command. The types say a registered tool is called as <code>mcp__&lt;plugin&gt;__&lt;name&gt;</code>, so these become <code>mcp__savvy-progress__progress</code> and <code>mcp__savvy-progress__step</code>. The comment says <code>isDeferred: false</code> keeps the step tool in every agent's tool list, not behind ToolSearch. The hook also starts a one-second clock that moves <code>now</code> only while a run is going.</p>
+  <pre><code>    await $.tool.register({
+      name: 'step',
+      description:
+        'For savvy-flow workers: report progress on your own task to the agents panel. ' +
+        'Right after reading the brief, call it with `total` (your plan in 3-8 steps) and `done: 0`; ' +
+        'call it again as each step finishes. Cheap and silent: it only draws a bar.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          done: { type: 'integer', minimum: 0, description: 'Steps finished so far.' },
+          total: { type: 'integer', minimum: 1, description: 'Steps planned; may change if the plan changes.' },
+          note: { type: 'string', description: 'The step in progress, a few words.' },
+        },
+        required: ['done'],
+      },
+      // In every agent's tool list, not behind ToolSearch: workers do not go looking for it.
+      isDeferred: false,
+    })
+    await $.command.register({
+      name: 'agents-info',
+      description: 'Show or hide the panel of subagents: running, finished and planned, with model, context, cost and time',
+    })</code></pre>
+
+  <h3>3. Take flow reports from the main session only</h3>
+  <p>This <code>tool.call</code> hook answers the progress tool itself and never calls <code>next(e)</code>. The types say a registered tool needs a hook that returns its result. A call with an <code>agentId</code> comes from a subagent, so it is ignored. A new title starts a new flow: finished runs are cleared, running ones stay. <code>merge</code> then folds in the report. Fields left out keep their old values. A report with tasks opens the panel, once per flow title.</p>
+  <pre><code>  on('tool.call', { tool: TOOL }, async ($, e) =&gt; {
+    // The flow is the main session's: a call from a worker's loop carries its agentId
+    // and changes nothing, or any subagent could rename, finish or reset the flow.
+    if (e.agentId) return { result: 'ignored: only the main session reports the flow' }
+    const input = e as unknown as ProgressInput
+    const prev = await read($, flow)
+    if (isNewFlow(prev, input) &amp;&amp; input.title !== undefined) {
+      // A new flow starts with a clean list; agents still running stay.
+      await update($, agents, list =&gt; list.filter(a =&gt; a.status === 'running'))
+    }
+    const next = await update($, flow, p =&gt; merge(p, input))
+    if (next &amp;&amp; input.tasks?.length) await autoOpen($, next.title)
+    return { result: `ok: ${label(next ?? blank())}` }
+  })</code></pre>
+
+  <h3>4. Brief each savvy worker and add a row for every subagent</h3>
+  <p><code>agent.spawn</code> runs before a subagent starts. For a <code>savvy-*</code> worker whose prompt does not name the step tool, it adds <code>STEP_BRIEF</code> to the end of the prompt before <code>next</code>. The comment says workers skip the step tool when the system prompt asks, but follow the same request in the brief. If the start is denied, the hook stops there. Otherwise it adds a run record, and counts rounds by matching descriptions. Only the last 200 runs are kept.</p>
+  <pre><code>  on('agent.spawn', async ($, e, next) =&gt; {
+    const isUnbriefed = e.subagentType.startsWith('savvy-') &amp;&amp; !e.prompt.includes(STEP_TOOL)
+    const started = await next(isUnbriefed ? { ...e, prompt: e.prompt + STEP_BRIEF } : e)
+    if (started.deny !== undefined) return started
+
+    const at = await $.clock.now()
+    await update($, agents, list =&gt; {
+      const round = 1 + list.filter(a =&gt; norm(a.description) === norm(e.description) &amp;&amp; e.description).length
+      const run: AgentRun = {
+        id: started.agentId ?? e.tool_use_id,
+        agentId: started.agentId,
+        type: e.subagentType,
+        description: e.description,
+        model: started.model,
+        status: 'running',
+        startedAt: at,
+        contextTokens: 0,
+        contextMax: windowOf(started.model),
+        tokens: 0,
+        costUsd: 0,
+        steps: 0,
+        round,
+      }
+      return [...list.filter(a =&gt; a.id !== run.id), run].slice(-200)
+    })</code></pre>
+
+  <h3>5. Count each model request of a subagent</h3>
+  <p><code>turn.step</code> fires for each model request. It streams, so the hook is a generator, and <code>yield* next(e)</code> gives the whole response. The hook only acts on a subagent's request (<code>agentId</code>) that has <code>usage</code>. Context is the token count of the last request. Tokens and cost add up across requests. Later, <code>turn.complete</code> marks the run <code>done</code> when the reason is <code>answer</code>, and <code>failed</code> otherwise.</p>
+  <pre><code>  // Each model request of a subagent: live context, tokens and cost.
+  on('turn.step', async function* ($, e, next) {
+    const result = yield* next(e)
+    const agentId = e.agentId
+    const usage = result.usage
+    if (!agentId || !usage) return result
+
+    const model = usage.model || e.model
+    await update($, agents, list =&gt;
+      list.map((a): AgentRun =&gt;
+        a.agentId !== agentId
+          ? a
+          : {
+              ...a,
+              model,
+              effort: typeof e.effort === 'string' ? e.effort : a.effort,
+              status: 'running',
+              endedAt: undefined,
+              contextTokens:
+                (usage.input_tokens || 0) +
+                (usage.cache_read_input_tokens || 0) +
+                (usage.cache_creation_input_tokens || 0) +
+                (usage.output_tokens || 0),
+              contextMax: windowOf(model),
+              tokens:
+                a.tokens +
+                (usage.input_tokens || 0) +
+                (usage.output_tokens || 0) +
+                (usage.cache_read_input_tokens || 0) +
+                (usage.cache_creation_input_tokens || 0),
+              costUsd: a.costUsd + costOf(model, usage, true),</code></pre>
+
+  <h3>6. Estimate the cost from a price table</h3>
+  <p>The comment says the engine reports tokens, not money, so the cost is an estimate. <code>PRICES</code> gives dollars per million tokens for input, output, cache reads and cache writes. The first pattern that matches the model id wins. A Haiku 5.5 request with a prompt over 100,000 tokens uses the long-prompt prices. An unknown model gets <code>[4, 20, 0.2, 8]</code>.</p>
+  <pre><code>const priceOf = (model: string, prompt: number): Price =&gt; {
+  const id = model.toLowerCase()
+  if (prompt &gt; HAIKU_LONG_PROMPT &amp;&amp; /haiku-5-5/.test(id)) return HAIKU_LONG
+  return PRICES.find(([re]) =&gt; re.test(id))?.[1] ?? [4, 20, 0.2, 8]
+}
+
+// `isRequest` says the usage is one model request, which is what a prompt-length price
+// is set by; a turn's sum is priced at the model's ordinary prices.
+const costOf = (model: string, u: Usage, isRequest: boolean): number =&gt; {
+  const prompt = isRequest ? (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0) : 0
+  const [i, o, r, w] = priceOf(model, prompt)
+  return (
+    ((u.input_tokens || 0) * i +
+      (u.output_tokens || 0) * o +
+      (u.cache_read_input_tokens || 0) * r +
+      (u.cache_creation_input_tokens || 0) * w) /
+    1e6
+  )
+}</code></pre>
+
+  <h3>7. Draw the bar above the prompt</h3>
+  <p>The <code>AbovePrompt</code> hook passes when there is no flow or a survey is open. Otherwise it draws its own row with the other mods' bands beneath it. The comment says Claude Code's own placeholder is never nested, because the desktop drops a band that nests it. The <code>×N</code> button opens or closes the panel. The <code>✕</code> button clears the flow. On the desktop the row is one SVG. In the terminal it is <code>Text</code>, with a bar of <code>█</code> and <code>░</code>.</p>
+  <pre><code>  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =&gt; {
+    const f = await read($, flow)
+    if (f === null || e.props.hasSurvey) return next(e)
+    // Draw this row with the other mods' bands beneath it. Claude Code's own placeholder ({ type: 'engine' }) is
+    // never nested: the desktop drops a band that nests it.
+    const drawn = await Promise.resolve(next(e)).catch(() =&gt; null)
+    const below = drawn &amp;&amp; typeof drawn === 'object' &amp;&amp; (drawn as { type?: string }).type !== 'engine' ? drawn : null
+
+    const ui = $.ui.resolve(e)
+    const { Box, Text, Button } = ui
+    const list = await read($, agents)
+    const crew = list.length + plannedOf(f, list).length
+    const isWorking = list.some(a =&gt; a.status === 'running')
+    const crewButton = (
+      &lt;Button key="savvy-agents" label={`×${crew}`} plain onPress={() =&gt; void togglePane($)} /&gt;
+    )
+    const percent = `${Math.round(ratio(f) * 100)}%`
+    const dismiss = (
+      &lt;Button
+        key="savvy-dismiss"
+        label="✕"
+        plain
+        role="dismiss"
+        onPress={() =&gt; update($, flow, () =&gt; null)}
+      /&gt;
+    )</code></pre>
+
+  <h2>How to use it</h2>
+  <pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install savvy-progress@waraxe-claude-mods</code></pre>
+  <p>Replace <code>&lt;org&gt;</code> with the GitHub owner of this marketplace. The marketplace README says to run <code>/reload-plugins</code> or start a new session after the install.</p>
+
+  <ul class="steps">
+    <li><code>/agents-info</code> opens or closes the agents panel. <code>/agents-info open</code> opens it, or brings it forward from behind another tab, without toggling.</li>
+    <li>The bar appears once something reports progress, or a <code>savvy-*</code> worker starts. The README says savvy-flow reports progress.</li>
+    <li>Tools it adds: <code>mcp__savvy-progress__progress</code> for the main session's plan, phase and accepted tasks, and <code>mcp__savvy-progress__step</code> for a worker's own steps (<code>done</code>, <code>total</code>, <code>note</code>). A worker that does not report shows its context fill in grey instead.</li>
+    <li>Setting <code>language</code>: <code>auto</code> (default), <code>en</code>, <code>ru</code> or <code>he</code>. Hebrew draws the bar and the panel right to left. <code>auto</code> follows Claude Code's <code>language</code> setting, then the system locale, and falls back to English.</li>
+    <li>Setting <code>autoOpen</code>: <code>savvy</code> (default) opens the panel when a <code>savvy-*</code> worker starts or a plan is reported. <code>any</code> also opens it, once per session, when any other subagent starts.</li>
+    <li>Set both in <code>/config</code>. For a mod loaded by hand, the README gives this for <code>~/.claude/settings.json</code>:
+      <pre><code>{ "pluginConfigs": { "savvy-progress": { "options": { "language": "ru" } } } }</code></pre></li>
+    <li>Cost: the plugin makes no model call of its own. The README says the cost it shows is a rough estimate from token counts and a built-in price table (list prices as of 2026-10-10), not a bill.</li>
+  </ul>
+
+  <h3>Limits</h3>
+  <ul class="steps">
+    <li>Cache writes are priced at the 1-hour rate. The README says a session that writes 5-minute entries is overestimated there.</li>
+    <li>Only the main session can report the flow. A worker's progress call is ignored, and a step call from the main session is ignored too.</li>
+    <li>The panel keeps the last 200 runs. A plan keeps at most 200 tasks, and a title at most 120 characters.</li>
+    <li>The context window is guessed from the model name: 200K for Haiku 4 and Claude 3 models, 1M for the rest.</li>
+    <li>The README says <code>prefers-reduced-motion</code> stops the crab animations.</li>
+  </ul>
+
+  <h2>Check yourself</h2>
+
+  <details class="check">
+    <summary>A subagent calls the progress tool with <code>finished: true</code>. What changes?</summary>
+    <p>Nothing. The hook sees <code>e.agentId</code> and returns "ignored: only the main session reports the flow". It never reaches <code>merge</code>. The comment says this stops any subagent from renaming, finishing or resetting the flow.</p>
+  </details>
+
+  <details class="check">
+    <summary>A <code>savvy-light</code> worker never calls the step tool. What does the bar in its panel row show?</summary>
+    <p>Its context fill, drawn grey. <code>progressOf</code> returns <code>null</code> for a running run with no <code>stepTotal</code>, and the row then falls back to the context percent. A run marked <code>done</code> always shows a full bar.</p>
+  </details>
+
+  <h2>Go further</h2>
+  <ul>
+    <li>Main hook file: <a href="../../plugins/savvy-progress/hooks/register.tsx">plugins/savvy-progress/hooks/register.tsx</a></li>
+    <li>Upstream repository: <a href="https://github.com/JohnnyVizz/claude-kit">github.com/JohnnyVizz/claude-kit</a>, folder <code>plugins/savvy-progress</code></li>
+    <li>API types for <code>agent.spawn</code>, <code>turn.step</code>, <code>$.tool.register</code> and <code>AbovePrompt</code>: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a></li>
+    <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+    <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+  </ul>
+
+  <nav class="lesson-nav">
+  <a href="0018-usage-display.html">← 0018 Usage display</a>
+  <a href="../index.html">Index</a>
+  <a href="0020-work-inventory.html">0020 Work inventory →</a>
+</nav>
+
+  <p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

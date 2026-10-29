@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0013: Handoff</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+  <style>
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+    th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+    th { font-family: system-ui, -apple-system, sans-serif; color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0013 · Handoff</p>
+<h1>ctx-handoff</h1>
+<p class="lede">When a long chat nears a full context, ctx-handoff can have a fork write a summary, runs <code>/clear</code>, and sends the summary into the fresh conversation, so the work carries on without the full history.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt>
+  <dd><code>ctx-handoff</code> 0.8.2, variant 4b. Upstream: <a href="https://github.com/cablate/ctx-handoff-mod">github.com/cablate/ctx-handoff-mod</a></dd>
+  <dt>Folder</dt>
+  <dd><code>plugins/ctx-handoff</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code>, <code>session.end</code>, <code>prompt.submit</code>, <code>prompt.context</code>, <code>turn.step</code>, <code>turn.complete</code>, <code>classic.Stop</code>, <code>tool.call</code>, <code>config.set</code>, <code>ui.render</code> for <code>AbovePrompt</code>, and <code>command.run</code> for <code>handoff</code> and <code>ctx-handoff</code></dd>
+  <dt>Calls</dt>
+  <dd><code>$.model.fork</code>, <code>$.model.complete</code>, <code>$.command.run</code>, <code>$.prompt.submit</code>, <code>$.command.register</code>, <code>$.session.usage</code>, <code>$.session.id</code>, <code>$.session.turns</code>, <code>$.session.messages</code>, <code>$.session.root</code>, <code>$.agent.list</code>, <code>$.store</code>, <code>$.fs</code>, <code>$.env.get</code>, <code>$.settings.read</code>, <code>$.clock</code>, <code>$.ui</code>, and state through <code>atom</code>, <code>read</code> and <code>update</code></dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.ts</code> (1,686 lines), 19 helper modules and 15 test files in <code>hooks/</code>, <code>types/index.d.ts</code>, <code>tools/</code>, <code>docs/guide.md</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt>
+  <dd>cablate (CabLate in <code>plugin.json</code>). MIT, in the folder's <code>LICENSE</code>.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>ctx-handoff</code> 0.8.2, by cablate, MIT · upstream <a href="https://github.com/cablate/ctx-handoff-mod">https://github.com/cablate/ctx-handoff-mod</a>.<br>Install: <code>claude plugin install ctx-handoff@waraxe-claude-mods</code> · folder <a href="../../plugins/ctx-handoff/">plugins/ctx-handoff</a> · <a href="../../plugins/ctx-handoff/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>ctx-handoff is a toolkit for long sessions. This lesson follows its handoff. With <code>auto_handoff</code> on, at 600,000 tokens it waits for Claude and its subagents to finish, has a fork write a summary, clears the chat, and sends the summary as the first message of the fresh conversation. <code>auto_handoff</code> is off by default, so Claude Code's own compact takes over unless you turn it on or run <code>/handoff now</code>.</p>
+<p>The same plugin keeps the prompt cache warm while you are away, keeps project notes, and nudges Claude when it repeats a failure or says it is done without checking. The <a href="../../plugins/ctx-handoff/docs/guide.md">guide</a> covers those parts.</p>
+<p>It matters for <a href="../MISSION.md">your mission</a> because it clears your chat and submits a prompt for you, and you must be able to point to the hooks and calls that do that before you tell others to install it.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>4b</td><td>ctx-handoff</td><td>A long-session toolkit. With <code>auto_handoff</code> on, it writes a summary when the context fills, keeping verified work apart from unverified changes, then clears and continues in a fresh conversation. It also keeps the cache warm and keeps project notes.</td><td>Shipped in this marketplace: <code>plugins/ctx-handoff</code>. MIT, from <a href="https://github.com/cablate/ctx-handoff-mod">cablate/ctx-handoff-mod</a>.</td></tr>
+    <tr><td>4</td><td>handoff</td><td>Offers Refresh at 250,000 tokens. Writes a handoff with a fork, shows the steps, then copies it or opens a new chat with it. Also runs on <code>/handoff</code> and when Cache Clock asks.</td><td>Not shipped: no licence. <a href="../reference/mod-catalogue.html#m4">Catalogue</a>.</td></tr>
+    <tr><td>4a</td><td>handoff (WeAreNoCode)</td><td><code>/handoff</code> asks Claude for a JSON note of what is done, next, unsure, the files that matter and what to keep in mind. The offer shows at 60% full. The new chat starts after <code>/clear</code>.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/wearenocode-claude-mods/handoff">wearenocode-claude-mods/handoff</a></td></tr>
+    <tr><td>4c</td><td>bookmarks</td><td>Named save points in the chat, with no new chat, according to the workspace synthesis.</td><td>Video only. No code is on disk. See <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/docs/MODS-FINAL-SYNTHESIS.md">MODS-FINAL-SYNTHESIS.md</a>.</td></tr>
+    <tr><td>4d</td><td>auto handoff</td><td>Runs a handoff at a threshold you set, according to the workspace synthesis.</td><td>Video only. No code is on disk. See <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/docs/MODS-FINAL-SYNTHESIS.md">MODS-FINAL-SYNTHESIS.md</a>.</td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The hooks live in <code>hooks/register.ts</code>, with settings in <code>hooks/config.ts</code> and the texts in <code>hooks/i18n.ts</code>. The code comments are in Traditional Chinese; the prose below says what they mean. The steps follow one automatic handoff, then the cache keeping that runs while you are away.</p>
+
+<h3>1. Declare the hook module</h3>
+<p><code>hooks/hooks.json</code> names one module. The engine loads it and calls the <code>register</code> function it exports.</p>
+<pre><code>{ "modules": ["./register.ts"] }</code></pre>
+
+<h3>2. Set the threshold</h3>
+<p>Each setting has a type, a range and a default. <code>auto_handoff</code> is off, and the threshold is 600,000 tokens. On a smaller context window, <code>thresholdOf</code> takes the window times <code>window_ratio</code> (0.8) when that is lower.</p>
+<pre><code>export const SETTINGS: readonly SettingSpec[] = [
+  { key: 'auto_handoff', kind: 'bool', d: false },
+  { key: 'threshold', kind: 'num', min: 50_000, max: 2_000_000, step: 50_000, d: 600_000 },
+  { key: 'window_ratio', kind: 'num', min: 0.3, max: 0.95, step: 0.05, d: 0.8 },</code></pre>
+<pre><code>export const thresholdOf = (window: number) =&gt; Math.min(cfg.threshold, Math.floor(window * cfg.windowRatio))</code></pre>
+
+<h3>3. Decide at each stop</h3>
+<p>The <code>classic.Stop</code> hook calls <code>onStop</code> each time the main conversation stops. With <code>auto_handoff</code> off, or under the threshold, it returns. If background tasks, one-shot schedules or subagents are still running, it waits, up to a cap: 90% of the window, or 150,000 tokens past the threshold, whichever is lower.</p>
+<pre><code>  if (!cfg.autoHandoff) {
+    rt.deferral = undefined
+    rt.deferToasted = false
+    return
+  }
+  const { context } = await $.session.usage()
+  const tokens = context.tokens
+  const threshold = thresholdOf(context.window)
+  if (tokens === undefined || tokens &lt; threshold) {
+    rt.deferral = undefined
+    rt.deferToasted = false
+    return
+  }
+  const agents = (await $.agent.list()).filter(a =&gt; a.status === 'running').length
+  const parts = [tasks &amp;&amp; t().stop.tasks(tasks), oneShot &amp;&amp; t().stop.oneShot(oneShot), agents &amp;&amp; t().stop.agents(agents)].filter(Boolean)
+  const partsText = parts.join(t().list)
+  let note: string | undefined
+  if (parts.length &gt; 0) {
+    const cap = Math.min(Math.floor(context.window * DEFER_CAP_RATIO), threshold + DEFER_CAP_EXTRA)
+    if (tokens &lt; cap) {
+      rt.deferral = t().stop.deferral(partsText, cap)
+      $.ui.status(t().status.deferred(partsText))
+      $.ui.log(t().stop.deferLog(tokens, partsText))
+      if (!rt.deferToasted) { rt.deferToasted = true; $.ui.toast(t().status.deferred(partsText)) }
+      return
+    }
+    note = t().stop.note(partsText, cap)
+    $.ui.log(t().stop.capLog(tokens, cap, partsText))
+  }</code></pre>
+<p>Then it marks the session busy and starts the handoff on a timer, so the hook itself returns at once.</p>
+<pre><code>  rt.deferral = undefined
+  rt.deferToasted = false
+  $.ui.status(undefined)
+  beginPresent()
+  $.clock.after(0, () =&gt; void present($, tokens, 'present', note))</code></pre>
+
+<h3>4. Ask a fork for the summary</h3>
+<p><code>makeHandoff</code> sends <code>HANDOFF_PROMPT</code> through <code>$.model.fork</code>. The engine types say a fork is one tool-less completion over the session's own transcript, so the API can serve that prefix from its cache. <code>forkWithin</code> stops waiting after <code>HANDOFF_TIMEOUT_MS</code>, 5 minutes. A failure is logged, shown as a toast and stored for <code>/handoff</code>. A good summary is kept in the store, the last five per project.</p>
+<pre><code>async function makeHandoff($: EngineInterface, kind: Kind, tokens: number | null, source?: HandoffSource) {
+  const sid = source?.sid ?? await $.session.id()
+  const started = await $.clock.now()
+  const task = { sid, phase: 'generating', at: started } satisfies NonNullable&lt;typeof rt.handoffTask&gt;
+  rt.handoffTask = task
+  await refreshPanel($)
+  try {
+  const r = await forkWithin($, HANDOFF_PROMPT, HANDOFF_TIMEOUT_MS, sid)
+  if (source &amp;&amp; !(await sourceIsFresh($, source))) {
+    $.ui.log(t().idle.outdated)
+    await stat($, 'away.stale')
+    return undefined
+  }
+  if (!r.isAnswered) {
+    $.ui.log(t().handoff.failedLog(forkFailure(r.reason)))
+    $.ui.toast(t().handoff.failedToast)
+    await recordFailure($, kind, tokens, t().handoff.failGenerate(forkFailure(r.reason)))
+    return undefined
+  }</code></pre>
+<p><code>HANDOFF_PROMPT</code>, in <code>hooks/handoff.ts</code>, is written in Chinese. The guide describes it: the summary keeps verified work apart from work only changed or only discussed, lists approaches that failed, keeps your limits in your own words, and ends with one next step. It has no word cap.</p>
+
+<h3>5. Tell the fresh chat what happened</h3>
+<p><code>present</code> puts a short intro, tagged <code>[ctx-handoff]</code>, before the summary. Messages you typed during the handoff were held in <code>rt.held</code>. They go in after the summary, and the intro changes to say so.</p>
+<pre><code>    const why = kind === 'manual' ? t().handoff.whyManual : t().handoff.whyTokens(tokens ?? 0)
+    const included = [...rt.held]
+    delivered = included.length
+    const intro = `${tag} ${included.length === 0 ? t().handoff.intro(why) : t().handoff.introHeld(why)}`
+    const text = `${intro}${note ? t().handoff.note(note) : ''}\n\n${handoff}${included.length ? `\n\n${heldBlock(included)}` : ''}`
+    const failed = await clearAndSubmit($, text)</code></pre>
+<p>The English intro, from <code>hooks/i18n.ts</code>, asks the new chat to state what it understood and wait.</p>
+<pre><code>    intro: why =&gt;
+      `The previous conversation was cleared automatically because ${why}. Here is the handoff: read it, tell me in a few lines the current state and next step as you understand them, then wait for the user's instructions. Do not start working yet.`,
+    introHeld: why =&gt;
+      `The previous conversation was cleared automatically because ${why}. Here is the handoff and the messages the user sent during the handoff: respond to the user's last message below, using the handoff as context.`,</code></pre>
+
+<h3>6. Clear, then submit</h3>
+<p><code>clearAndSubmit</code> first saves the text under a pending key. It then runs <code>/clear</code> with <code>$.command.run</code> and sends the text with <code>$.prompt.submit</code>. The comment says the session is marked as handed off first, so the new chat's first message does not also get the progress note, and the mark is undone if <code>/clear</code> fails. If <code>/clear</code> fails, you are still in the old chat, so the pending text is deleted. If only the submit fails, the text stays for <code>/handoff resend</code>.</p>
+<pre><code>  const key = pendingKey(sid)
+  await $.store.set(key, { text, project: await projectKey($) } satisfies PendingSubmit)
+  await touchSeen($, key)
+  rt.myPending = { sid }
+  rt.pendingToasted = false
+  // 新對話第一則訊息（就是這份 handoff）開頭不要再提供同一段的進度備忘：先標記，/clear 失敗再還原
+  await markHanded($, sid, true)
+  try {
+    await $.command.run({ command: 'clear' })
+  } catch (err) {
+    await $.store.delete(key)
+    rt.myPending = undefined
+    await markHanded($, sid, false)
+    return { stage: 'clear', reason: String(err) }
+  }
+  try {
+    await submitText($, text)
+  } catch (err) {
+    return { stage: 'submit', reason: String(err) }
+  }
+  await $.store.delete(key)
+  rt.myPending = undefined
+  return undefined</code></pre>
+
+<h3>7. Keep the cache warm while you are away</h3>
+<p>After each turn, <code>schedule</code> sets a timer for <code>idle_minutes</code> (50). When it fires, <code>onIdle</code> sends a fork whose prompt means "Reply only OK". The comment says this is the cheapest fork: it reads the cache once. The first refresh also updates the project notes. After <code>max_refresh</code> (3) refreshes, <code>onIdle</code> writes an away handoff instead and does not clear. Your next message then asks you to choose <code>/handoff resume</code> or <code>/handoff continue</code>.</p>
+<pre><code>  if ((await isRefreshOn($)) &amp;&amp; rt.refreshes &lt; cfg.maxRefresh) {
+    const task = { sid, phase: 'refresh', at: await $.clock.now() } satisfies NonNullable&lt;typeof rt.handoffTask&gt;
+    rt.handoffTask = task
+    await refreshPanel($)
+    try {
+    // 刷新用最便宜的 fork（只回 OK）讀一次快取；整理是另一個不帶歷史的請求，有新對話才跑
+    const r = await forkWithin($, '只回覆 OK', HANDOFF_TIMEOUT_MS, sid)
+    if (!(await sourceIsFresh($, { sid, activity }, true))) return
+    if (!r.isAnswered &amp;&amp; r.reason === 'nothing-to-fork') {
+      $.ui.log(t().idle.refreshSkipped)
+      return
+    }
+    if (rt.refreshes === 0 &amp;&amp; await isDistillOn($)) await distill($, t().distill.why.idle)
+    if (!(await sourceIsFresh($, { sid, activity }, true))) return
+    rt.refreshes += 1
+    $.ui.log(r.isAnswered
+      ? t().idle.refresh(rt.refreshes, cfg.maxRefresh, r.usage.cache_read_input_tokens, r.usage.cache_creation_input_tokens)
+      : t().idle.refreshFailed(rt.refreshes, cfg.maxRefresh, r.reason))
+    await schedule($)
+    return</code></pre>
+
+<div class="warn">
+<strong>Two things to check before you rely on it.</strong>
+<ul>
+  <li>The README says: on an API key, Bedrock or Vertex the cache lasts only 5 minutes, so run <code>/handoff refresh off</code>. The guide says this is not detected for you.</li>
+  <li>The README calls ctx-handoff experimental, because Claude Code mods are still in early access.</li>
+</ul>
+</div>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install ctx-handoff@waraxe-claude-mods</code></pre>
+<p>Replace <code>&lt;org&gt;</code> with the GitHub account that hosts this marketplace. The README asks for Claude Code 2.1.287 or later, and says it was tested up to 2.1.302.</p>
+
+<ul class="steps">
+  <li>Start a new session and type <code>/handoff</code>. It shows context use, what is on, the latest progress note and recent errors. The README's example starts with <code>context 12034 / threshold 600000 (window 1000000)</code>.</li>
+  <li>To hand off at the threshold, open <code>/handoff panel</code>, press <kbd>5</kbd> for Settings, and turn on <code>auto_handoff</code>.</li>
+  <li><code>/handoff now</code> hands off at once and clears. <code>/handoff dry</code> shows a summary and its cost without clearing.</li>
+  <li>After being away: <code>/handoff resume</code> starts fresh from the summary, and <code>/handoff continue</code> stays where you were.</li>
+  <li>If the new chat did not get the summary: <code>/handoff resend</code>, or <code>/handoff resend &lt;source-session-id&gt;</code> after a restart.</li>
+  <li>Other commands: <code>/handoff distill</code> updates project notes now, <code>/handoff away pause|resume</code>, <code>/handoff refresh on|off</code>, <code>/handoff distill on|off</code>, and <code>/handoff guard</code>. If <code>/handoff</code> is taken by your own command or skill, the command is <code>/ctx-handoff</code>.</li>
+</ul>
+
+<p><strong>Settings.</strong> All of them are on the panel's Settings tab, not in <code>/config</code>. The main ones: <code>auto_handoff</code> (off), <code>threshold</code> (600000), <code>window_ratio</code> (0.8), <code>idle_minutes</code> (50, from 5 to 59), <code>max_refresh</code> (3), <code>distill_every</code> (30), <code>min_tokens</code> (30000) and <code>notes_model</code> (Sonnet 5.5 or Opus 5.5). You can also set them in <code>~/.claude/settings.json</code> under <code>pluginConfigs</code>. The code reads the first key that starts with <code>ctx-handoff@</code>, so from this marketplace the key is <code>ctx-handoff@waraxe-claude-mods</code>. A value set on the panel wins over the file.</p>
+
+<p><strong>Cost.</strong> From the guide:</p>
+<ul>
+  <li>A handoff is one request that reads the conversation, mostly from cache, and writes the summary. The guide says about 30 seconds at 800,000 tokens. A comment in <code>config.ts</code> says 45 to 120 seconds since the word cap was removed.</li>
+  <li>A cache refresh reads the conversation from cache, at about a tenth of the normal input price, at most 3 times per idle period.</li>
+  <li>A notes update sends only the new part of the conversation to Sonnet 5.5 at low effort. A short one takes about 1,200 tokens.</li>
+  <li>The nudges make no requests. It makes no network requests of its own and starts no programs.</li>
+</ul>
+
+<p><strong>Limits.</strong> From the guide:</p>
+<ul>
+  <li>On a 5-minute cache, turn cache keeping off with <code>/handoff refresh off</code>.</li>
+  <li>Notes follow the folder you start in, and are not shared across projects.</li>
+  <li>The progress note is only as fresh as the last notes update. Run <code>/handoff distill</code> before <code>/clear</code> if you want it exact.</li>
+  <li>Attachments typed during a handoff cannot be held. You are asked to paste them again.</li>
+  <li>Other open sessions pick up a settings change on their next message.</li>
+  <li>Updating the mod in the middle of a handoff may lose a held message.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary><code>auto_handoff</code> is off. What does ctx-handoff do when the chat reaches 600,000 tokens?</summary>
+  <p>No handoff. <code>onStop</code> returns as soon as it sees <code>!cfg.autoHandoff</code>, so Claude Code's own compact takes over. Cache keeping and notes still run, and <code>/handoff now</code> still works.</p>
+</details>
+<details class="check">
+  <summary>Why does <code>clearAndSubmit</code> save the text under a pending key before it runs <code>/clear</code>?</summary>
+  <p>Once <code>/clear</code> has run, the old chat is gone. If the submit then fails, the saved text is the only copy, and <code>/handoff resend</code> sends it from the store. The key is deleted only after a good submit, or when <code>/clear</code> itself fails and you are still in the old chat.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="../../plugins/ctx-handoff/hooks/register.ts">The main hook file: plugins/ctx-handoff/hooks/register.ts</a></li>
+  <li><a href="https://github.com/cablate/ctx-handoff-mod">The upstream repository: cablate/ctx-handoff-mod</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: read <code>model.fork</code>, <code>command.run</code> and <code>prompt.submit</code></a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0012-cache-guard.html">← 0012 Cache guard</a>
+  <a href="../index.html">Index</a>
+  <a href="0014-replay.html">0014 Replay →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

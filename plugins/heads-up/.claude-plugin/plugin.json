@@ -1,0 +1,10 @@
+{
+  "name": "heads-up",
+  "version": "0.1.0",
+  "description": "After a long turn, one Haiku call flags up to two things you might miss, in a band above the prompt. Off until /heads-up on",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

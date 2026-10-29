@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0032: today-report</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0032 · Mod</p>
+<h1>today-report</h1>
+<p class="lede">Today's Report totals your Claude Code tasks, the time they would have taken you, and your tokens by day, week, month and year, from your local session logs.</p>
+
+<dl class="meta">
+  <dt>Version</dt><dd>0.1.0</dd>
+  <dt>Folder</dt><dd>/Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/today-report</dd>
+  <dt>Marketplace</dt><dd>waraxe-claude-mods</dd>
+  <dt>Hooks</dt><dd><code>session.start</code> (registers the command), <code>command.run</code> (opens the pane and starts a read), <code>ui.render</code> (draws the pane). Declared in <code>hooks/hooks.json</code>, which names <code>register.tsx</code> as its only module.</dd>
+  <dt>Calls</dt><dd><code>$.command.register</code>, <code>$.ui.open</code>, <code>$.ui.resolve</code>, <code>$.config.list</code>, <code>$.process.run</code>, the property <code>$.plugin.root</code>, and <code>atom</code>, <code>read</code>, <code>update</code></dd>
+  <dt>Files</dt><dd>In the mod: <code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>types/index.d.ts</code>, <code>scripts/aggregate.py</code>, <code>README.md</code>. At run time it reads <code>~/.claude/projects/**/*.jsonl</code> and writes <code>~/.claude/today-report/cache.json</code>.</dd>
+  <dt>Author and license</dt><dd>Igor Waraxe, MIT</dd>
+  <dt>Requires</dt><dd><code>python3</code> on the machine</dd>
+  <dt>Settings</dt><dd><code>minutesPerTask</code> (number, default 10, 1 to 240) and <code>hourlyRate</code> (number, default 50, minimum 0)</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>today-report</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install today-report@waraxe-claude-mods</code> · folder <a href="../../plugins/today-report/">plugins/today-report</a> · <a href="../../plugins/today-report/INSTRUCTIONS.md">instructions</a><br>Needs: python3.</div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>today-report is a Claude Code mod with one slash command, <code>/today-report</code>. It opens a pane that totals your past work from the session logs in <code>~/.claude/projects</code>: tasks, estimated hours saved, value at your hourly rate, and tokens.</p>
+<p>Your mission in MISSION.md says you must be able to name the hook events and API calls each mod uses, and this mod is a small, complete example to study.</p>
+
+<h2>How it was built</h2>
+
+<h3>1. Read the logs with a script</h3>
+<p>The totals come from every <code>~/.claude/projects/**/*.jsonl</code> file. A plugin file read through <code>$.fs</code> rejects anything over 4 MiB, so reading a large log from the mod would fail. The author's logs are about 8 GB in total. So <code>scripts/aggregate.py</code> reads each file itself, one line at a time, and prints one JSON report to stdout. The report holds counts only. It prints no prompt or reply text.</p>
+<pre><code>def scan(path):
+    """Returns the per-day totals of one log file."""
+    days = {}
+    seen_requests = set()
+    task = None  # the prompt being answered, until the next prompt
+
+    with open(path, "rb") as handle:
+        for raw in handle:
+            if not any(marker in raw for marker in MARKERS):
+                continue
+            try:
+                record = json.loads(raw)
+            except ValueError:
+                continue</code></pre>
+<div class="note"><strong>Byte check before parsing.</strong> Each line is first checked for two byte markers, <code>"type":"user"</code> and <code>"type":"assistant"</code>. Lines without them are skipped before any JSON parsing, which saves work on large logs.</div>
+
+<h3>2. Stream the records and count tasks</h3>
+<p>A <em>task</em> starts at a typed prompt and runs until the next one. A record counts as a prompt when it is not marked <code>isMeta</code> and its text does not start with a command tag. Tool results are not prompts. A message made of content blocks counts only when one of the blocks is an image.</p>
+<p>A task's category is the first entry in this list that matches any tool the task used: code changes, commands, research, then delegated. A task with no matching tool is "conversation". Its model is the model of its first reply that carries usage data.</p>
+<p>Each reply adds its token counts. A streamed reply writes several records with the same request id, so the script counts each request id once.</p>
+<pre><code>            message = record.get("message") or {}
+            kind = record.get("type")
+
+            if kind == "user" and is_prompt(record, message):
+                close_task(days, task)
+                task = {"day": local_day(record["timestamp"]), "tools": set(), "model": None}
+            elif kind == "assistant":
+                usage = message.get("usage")
+                if task is not None:
+                    for block in message.get("content") or []:
+                        if isinstance(block, dict) and block.get("type") == "tool_use":
+                            task["tools"].add(block.get("name", ""))
+                    if task["model"] is None and isinstance(usage, dict):
+                        task["model"] = message.get("model")
+                # A reply streams as several records that repeat one usage: count it once.
+                request = record.get("requestId")
+                if not isinstance(usage, dict) or (request is not None and request in seen_requests):
+                    continue
+                if request is not None:
+                    seen_requests.add(request)
+                day = days.setdefault(local_day(record["timestamp"]), empty_day())
+                for name, field in TOKEN_FIELDS.items():
+                    day["tokens"][name] += usage.get(field) or 0</code></pre>
+<div class="note"><strong>Dedupe is per file.</strong> The set of seen request ids is created inside <code>scan()</code>, so it resets for each file. If one request id appeared in two files, its tokens would count twice. The source does not say whether that happens.</div>
+
+<h3>3. Cache each log by path, size and mtime</h3>
+<p>Each log file has one cache entry, keyed by its path. The entry holds the file's size, its modification time and its per-day totals. A file whose size and modification time match its entry is not read again. A change to either one makes the script read it again.</p>
+<p>The script stops starting new scans after 420 seconds. A file it does not reach gets a fallback. If it has an old entry, the old totals are kept and the file is counted as <em>stale</em>. If it has no entry, the file is left out and counted as <em>pending</em>. The pane shows a warning when either count is above zero. The cache is written to a <code>.tmp</code> file, which then replaces the old cache.</p>
+<pre><code>    for path in sorted(glob.glob(os.path.join(args.root, "**", "*.jsonl"), recursive=True)):
+        counts["files"] += 1
+        try:
+            info = os.stat(path)
+        except OSError:
+            counts["failed"] += 1
+            continue
+        known = cache.get(path)
+        if known and known["size"] == info.st_size and known["mtime"] == info.st_mtime:
+            fresh[path] = known
+            continue
+        if time.monotonic() - started &gt; args.budget:
+            if known:
+                fresh[path] = known
+                counts["stale"] += 1
+            else:
+                counts["pending"] += 1
+            continue</code></pre>
+<div class="note"><strong>Budget below the timeout.</strong> The mod passes no <code>--budget</code>, so the 420-second default applies. The mod's process call allows 600000 ms, which is ten minutes, the most the engine allows. The script stops starting scans at 420 seconds, inside that limit.</div>
+
+<h3>4. Hold the state in an atom and refresh through a process call</h3>
+<p>The pane's state lives in one atom, <code>view</code>, under the plugin name <code>today-report</code>. Its value holds the status (<code>idle</code>, <code>reading</code>, <code>ready</code> or <code>failed</code>), the chosen period, the report, any error, and the two settings. <code>types/index.d.ts</code> declares that shape, so <code>read</code> and <code>update</code> know it. <code>read</code> returns the starting value until something is written. <code>update</code> applies a change and retries if another write lands first.</p>
+<p>The <code>ui.render</code> hook draws the pane from that atom. Because it reads the atom while drawing, the pane redraws when the atom changes. The period buttons call <code>update</code>. The Refresh button calls <code>refresh</code>.</p>
+<p><code>refresh</code> reads the two settings with <code>$.config.list()</code>, sets the status to <code>reading</code>, and runs <code>python3</code> on the script with <code>$.process.run</code>. It parses stdout as JSON. A non-zero exit code becomes the failed state, with the first 300 characters of stderr as the message. The engine keeps only the first 4 MiB of each output stream, and the report holds one entry per day, so it stays small.</p>
+<pre><code>/** Runs the aggregator and stores what it prints. One run at a time. */
+async function refresh($: EngineInterface): Promise&lt;void&gt; {
+  const current = await read($, view)
+  if (current.status === 'reading') {
+    return
+  }
+
+  const settings = await $.config.list()
+  const minutesPerTask = setting(settings, 'today-report.minutesPerTask', 10)
+  const hourlyRate = setting(settings, 'today-report.hourlyRate', 50)
+  await update($, view, v =&gt; ({ ...v, status: 'reading', error: '', minutesPerTask, hourlyRate }))
+
+  try {
+    const run = await $.process.run(['python3', `${$.plugin.root}/scripts/aggregate.py`], { timeoutMs: 600000 })
+    if (run.exitCode !== 0) {
+      throw new Error(run.stderr.trim().slice(0, 300) || `exit code ${run.exitCode}`)
+    }
+
+    const report = JSON.parse(run.stdout) as Report
+    await update($, view, v =&gt; ({ ...v, status: 'ready', report }))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    await update($, view, v =&gt; ({ ...v, status: 'failed', error: message }))
+  }
+}</code></pre>
+<div class="note"><strong>Two details.</strong> The guard at the top of <code>refresh</code> reads the status, then waits for the settings, then writes <code>reading</code>. Two presses close together could both pass the guard, even though the comment says one run at a time. Also, the settings are read only when a run starts, so press Refresh after you change them.</div>
+
+<h3>5. Group days into periods, with weeks starting on Monday</h3>
+<p><code>totalsFor</code> puts each day into a bucket for the chosen period. The bucket key is the day for <em>day</em>, <code>YYYY-MM</code> for <em>month</em>, <code>YYYY</code> for <em>year</em>, and the Monday on or before the day for <em>week</em>. Buckets sort newest first and are cut to the latest rows: 14 days, 12 weeks, 12 months or 5 years. Week rows are labelled "week of" and the date.</p>
+<pre><code>  // A week starts on Monday, so step back to the Monday on or before the day.
+  const start = new Date(`${day}T00:00:00`)
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7))
+  return [start.getFullYear(), start.getMonth() + 1, start.getDate()]
+    .map(part =&gt; String(part).padStart(2, '0'))
+    .join('-')</code></pre>
+<p><code>getDay()</code> returns 0 for Sunday. The formula steps Sunday back six days to Monday, and steps Monday back zero.</p>
+<div class="note"><strong>The Total covers shown rows only.</strong> The Total line adds up only the rows the chosen period shows. On the day view, that is the latest 14 days, not your full history. The <code>in</code> figure adds cache reads and cache writes to input tokens.</div>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+claude plugin install today-report@waraxe-claude-mods</code></pre>
+<p>The <code>&lt;owner&gt;/&lt;repo&gt;</code> part is a placeholder. The source does not give the marketplace's GitHub path.</p>
+<ul class="steps">
+  <li><strong>Open it.</strong> Run <code>/today-report</code>. The pane opens and a read starts at once.</li>
+  <li><strong>Pick a period.</strong> Choose day, week, month or year. The chosen period shows in brackets.</li>
+  <li><strong>Refresh.</strong> Press Refresh to read the logs again. Later runs read only the logs that changed.</li>
+  <li><strong>Settings.</strong> <code>minutesPerTask</code> is the time a task would have taken you by hand. <code>hourlyRate</code> turns hours into dollars. Change them in the <code>/config</code> menu, where the engine lists each plugin's fields as <code>today-report.minutesPerTask</code> and <code>today-report.hourlyRate</code>. The README and the pane footer name <code>/plugin configure today-report</code> instead. The engine types do not mention that command, so test it before you rely on it.</li>
+  <li><strong>Cost.</strong> No model calls. The mod runs <code>python3</code> on your machine. The first read scans every log and can take a while. The script stops starting new files after 420 seconds, so a very large first read may take more than one run.</li>
+  <li><strong>Time saved is an estimate.</strong> Hours are tasks times minutes per task. The number comes from your setting, not from measured time.</li>
+  <li><strong>Tokens are real.</strong> They are summed from the usage fields in your logs.</li>
+  <li><strong>Not yet tested live.</strong> The figures and the pane have not been checked in a live session.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the mod run a Python script instead of reading the logs in TypeScript?</summary>
+  <p>A plugin file read through <code>$.fs</code> rejects anything over 4 MiB, and the author's logs total about 8 GB. The script reads each log one line at a time. The mod runs it through <code>$.process.run</code> and gets back a JSON report.</p>
+</details>
+<details class="check">
+  <summary>What starts a new task, and what makes a message count as a prompt?</summary>
+  <p>A typed prompt starts a task, and the next typed prompt ends it. A record counts as a prompt when it is not marked <code>isMeta</code> and its text does not start with a command tag. Tool results do not count. A message made of content blocks counts only when one of the blocks is an image.</p>
+</details>
+<details class="check">
+  <summary>Does the Total line cover all of your history?</summary>
+  <p>No. It adds up only the rows the chosen period shows: the latest 14 days, 12 weeks, 12 months or 5 years.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li>Main source: <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/today-report/hooks/register.tsx">register.tsx</a>, which holds the hooks, the pane and the refresh.</li>
+  <li>API types: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a>. Search it for <code>'command.run'</code> or <code>$.process.run</code>. Do not read it all.</li>
+  <li>Reference: <a href="../reference/mod-api-cheatsheet.html">mod API cheat sheet</a>.</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0031-terminal-browser.html">← 0031 Terminal browser</a>
+  <a href="../index.html">Index</a>
+  <a href="0033-claude-skins.html">0033 Claude Skins →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

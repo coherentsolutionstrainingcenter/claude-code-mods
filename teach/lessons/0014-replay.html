@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0014: Replay</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+  <style>
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+    th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+    th { font-family: system-ui, -apple-system, sans-serif; color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+
+  <p class="kicker">Lesson 0014 · Replay</p>
+  <h1>Replay</h1>
+  <p class="lede">After Claude changes your files, it lets you step through each edit from the last turn, one diff at a time.</p>
+
+  <dl class="meta">
+    <dt>Best version</dt>
+    <dd><code>replay-theater</code> 0.1.0 (ID 8), Anthropic's sample. Source: <a href="file:///Users/igorwaraxe/Downloads/claude-code-playground-mods/replay-theater/hooks/replay-theater.mjs">replay-theater.mjs</a></dd>
+    <dt>Status</dt>
+    <dd>Local copy. Not a git clone, so the GitHub source is not confirmed from this folder.</dd>
+    <dt>Variants</dt>
+    <dd>8 (team copy), 8b, 8a (built-in command, not a mod)</dd>
+    <dt>Files</dt>
+    <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/replay-theater.mjs</code>, <code>README.md</code>, four screenshots</dd>
+    <dt>Author and license</dt>
+    <dd>Manifest author: Claude Code DevRel. Source header: Copyright 2026 Anthropic PBC, Apache-2.0. The README points to the root <code>LICENSE</code>, which is the Apache License 2.0 text. The README says it is not an official Anthropic product.</dd>
+    <dt>Requires</dt>
+    <dd>Claude Code 2.1.287 or later, where mods load by default (README). Built and tested on 2.1.280.</dd>
+  </dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>replay-theater</code> 0.1.0, by Anthropic (Claude Code DevRel), Apache-2.0 · upstream <a href="https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods">https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods</a>.<br>Install: <code>claude plugin install replay-theater@waraxe-claude-mods</code> · folder <a href="../../plugins/replay-theater/">plugins/replay-theater</a> · <a href="../../plugins/replay-theater/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+  <h2>What it is</h2>
+  <p>Replay Theater records each file edit that Claude makes in a turn: the file, and the text before and after. When the turn ends, a hint appears above the prompt, and <code>/replay</code> opens a pane that shows one edit at a time, with a red and green diff. It only watches: the README says it never blocks, changes or delays an edit.</p>
+  <p>It matters for your mission because it shows which hook events and API calls a mod uses to record work and draw a pane, so you can point to them and say why.</p>
+
+  <h2>Variants</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>8</td><td>replay-theater (best version)</td><td>Records Edit, Write and MultiEdit calls. A hint above the prompt; a pane steps through the edits.</td><td>Local: <code>claude-code-playground-mods/replay-theater</code></td></tr>
+      <tr><td>8 (team copy)</td><td>replay-theater in benai-mods</td><td>Same code, plus support for the <code>/mods</code> switch (turn it off or hide it), and its band is drawn under other mods' bands. The file's header says Ben AI made the change.</td><td>Local: <code>benai-mods/plugins/replay-theater</code></td></tr>
+      <tr><td>8b</td><td>Replay Theater (WeAreNoCode)</td><td>A band says "Claude changed N things in M files". A panel shows the net change per file, track-changes style. Records Edit, Write and NotebookEdit.</td><td>Local: <code>wearenocode-claude-mods/replay-theater</code></td></tr>
+      <tr><td>8a</td><td>Built-in command</td><td>Not a mod. FAMILIES.md says it is a built-in command. Its behaviour is not confirmed here: no source folder was read.</td><td>None</td></tr>
+    </tbody>
+  </table>
+
+  <h2>How it was built</h2>
+  <p>Every snippet below is copied from the best version. The file is JavaScript (<code>.mjs</code>), not TypeScript, but the hook shape matches lesson 0016.</p>
+
+  <h3>1. Declare the hook module</h3>
+  <p>The file <code>hooks/hooks.json</code> names one module. The engine loads it and calls the exported <code>register</code> function. The types define it as <code>Register = (on: On, options: PluginOptions) =&gt; unknown</code>.</p>
+  <pre><code>{
+  "modules": [
+    "./replay-theater.mjs"
+  ]
+}</code></pre>
+
+  <h3>2. Record each edit, then let it run</h3>
+  <p>The <code>tool.call</code> hook runs for every tool call. For Edit, Write and MultiEdit it stores steps in <code>state.pending</code>. A recording error is caught, so it cannot stop the edit. The hook always returns <code>next(e)</code>, so the tool call goes on.</p>
+  <pre><code>  // Record each edit, then let it run. Never blocks the call.
+  on("tool.call", async ($, e, next) =&gt; {
+    if (EDIT_TOOLS.has(e.tool)) {
+      try {
+        const steps = await stepsFor($, e);
+        state.pending.push(...steps);
+      } catch { /* recording must never stop the edit */ }
+    }
+    return next(e);
+  });</code></pre>
+
+  <h3>3. Group the edits by turn</h3>
+  <p><code>turn.start</code> clears the pending list, except for a subagent turn, which has an <code>agentId</code>. <code>turn.complete</code> makes the pending list the replay, and returns early for a subagent. So a subagent's edits join the main turn's replay. A turn with no edits keeps the previous replay.</p>
+  <pre><code>  on("turn.start", ($, e, next) =&gt; {
+    if (!e.agentId) state.pending = [];
+    return next(e);
+  });
+
+  // At the end of a main-loop turn, the pending edits become the replay.
+  on("turn.complete", async ($, e, next) =&gt; {
+    const r = await next(e);
+    if (e.agentId || !state.pending.length) return r;
+    state.replay = state.pending;
+    state.pending = [];
+    state.index = 0;
+    state.turns++;
+    $.ui.invalidate("ui.render");
+    return r;
+  });</code></pre>
+
+  <h3>4. Register the /replay command</h3>
+  <p><code>session.start</code> registers the slash command with <code>$.command.register</code>. The <code>command.run</code> hook, filtered to <code>{ command: "replay" }</code>, opens the pane and returns a text reply.</p>
+  <pre><code>export function register(on, options) {
+  // Slash command: /replay opens the pane.
+  on("session.start", async ($, e, next) =&gt; {
+    const r = await next(e);
+    await $.command.register({ name: "replay", description: "Replay Theater: step through the last turn's file edits" });
+    return r;
+  });
+
+  on("command.run", { command: "replay" }, async ($, e) =&gt; {
+    const opened = await openReplay($);
+    return { text: opened ? `Replay Theater: ${state.replay.length} edits` : "Replay Theater: no edits in the last turn." };
+  });</code></pre>
+
+  <h3>5. Open the pane, and hide the band first</h3>
+  <p>The pane takes the keyboard only while nothing else holds it. So <code>openReplay</code> sets <code>isOpen</code> and asks for a re-render, which removes the mod's own band. It then waits 200 ms and calls <code>$.ui.open</code> with <code>focus</code> and <code>closeOnEscape</code>. If the result has <code>isPlaced</code> set to false, the replay is drawn in the band instead.</p>
+  <pre><code>async function openReplay($) {
+  if (!state.replay.length) return false;
+  state.index = 0;
+  state.isOpen = true;
+  // The pane only takes the keyboard while nothing else holds it. Hide the
+  // band first (it held the keys if its button was pressed), then open.
+  $.ui.invalidate("ui.render");
+  await $.clock.sleep(200);
+  const rows = Math.min(MAX_DIFF_LINES + 8, 22);
+  const placed = await $.ui.open({ id: PANE_ID, title: "Replay Theater", focus: true, closeOnEscape: true, rows, columns: 58 });
+  // No room for a pane (a narrow terminal): draw the replay in the band.
+  state.inBand = placed?.isPlaced === false;
+  $.ui.invalidate("ui.render");
+  return true;
+}</code></pre>
+
+  <h3>6. Draw the pane with buttons</h3>
+  <p>A <code>ui.render</code> hook for the <code>Pane</code> component draws the replay view when the request id matches. The view takes <code>Box</code>, <code>Text</code> and <code>Button</code> from <code>$.ui.resolve(e)</code>. Its buttons are Prev (<code>p</code>), Next (<code>n</code>) and Close (<code>c</code>). A Prev button looks like <code>Button({ key: "prev", label: "◀ Prev", hotkey: "p", onPress: () =&gt; go(k - 1) })</code>.</p>
+  <pre><code>  // The pane.
+  on("ui.render", { component: "Pane" }, ($, e, next) =&gt; {
+    if (e.requestId !== PANE_ID) return next(e);
+    return replayView($, e, false);
+  });</code></pre>
+
+  <h2>How to use it</h2>
+  <pre><code class="language-bash"># Best version, from its own folder
+claude plugin marketplace add /Users/igorwaraxe/Downloads/claude-code-playground-mods
+claude plugin install replay-theater@claude-code-playground-mods --scope user
+
+# Or try it for one session only
+claude --plugin-dir /Users/igorwaraxe/Downloads/claude-code-playground-mods/replay-theater
+
+# Or the team copy, from the benai-mods marketplace
+claude plugin marketplace add ~/Downloads/benai-mods
+claude plugin install replay-theater@benai-mods</code></pre>
+
+  <div class="warn"><strong>Not confirmed.</strong> The GitHub repo for these mods is not known yet. The best version's folder is not a git clone, so there is no remote to read. Its README gives the clone URL <code>https://github.com/anthropics/claude-code-playground.git</code>, but I could not check it from here. Install only one copy: all three use the plugin name <code>replay-theater</code>.</div>
+
+  <ul class="steps">
+    <li>Ask for an edit that changes files. The README example is "rename the function greet to welcome everywhere".</li>
+    <li>When the turn ends, type <code>/replay</code> and press Enter. Or press <code>ctrl+x</code>, then <code>Tab</code>, then <code>r</code>.</li>
+    <li>In the pane, <code>n</code> goes next, <code>p</code> goes back, and <code>c</code> or Escape closes it. Mouse clicks on the buttons also work.</li>
+    <li>Cost: the mod does not call a model. A Write reads the old file from disk once, before the write.</li>
+  </ul>
+
+  <h3>Limits</h3>
+  <ul class="steps">
+    <li>The diff shows up to 12 lines per step, then "… N more lines". Unchanged lines show only next to a change.</li>
+    <li>A Write of a file over 400 lines shows as all removed, then all added, with no matching lines.</li>
+    <li>Edits are recorded when the tool is called. An edit you deny, or one that fails, still shows.</li>
+    <li>The replay lives in memory for the current session. It is lost when Claude Code restarts or the plugin reloads.</li>
+    <li>The MultiEdit path is untested (README). The API types in the 2.1.308 folder do not list a MultiEdit tool.</li>
+    <li>The band above the prompt is shared. If another mod also draws there, only one of them shows (README).</li>
+  </ul>
+
+  <h2>Check yourself</h2>
+
+  <details class="check">
+    <summary>Why does the tool.call hook return next(e) after it records the edit?</summary>
+    <p>The hook only watches. Its comment says it records and then lets the edit run. The types say a hooks module returns <code>next(e)</code>, a copy with fields changed, or its own result. Returning <code>next(e)</code> lets the call go on unchanged, and the README says the mod never blocks, changes or delays an edit.</p>
+  </details>
+
+  <details class="check">
+    <summary>A subagent edits a file during the main turn. Why is that edit in the main turn's replay?</summary>
+    <p><code>turn.start</code> clears the pending list only when <code>e.agentId</code> is absent. <code>tool.call</code> still adds the subagent's steps to the pending list. <code>turn.complete</code> returns early for a subagent, so only the main turn's end turns the pending list into the replay.</p>
+  </details>
+
+  <h2>Go further</h2>
+  <ul>
+    <li>Best version: <a href="file:///Users/igorwaraxe/Downloads/claude-code-playground-mods/replay-theater/hooks/replay-theater.mjs">replay-theater.mjs</a> and its <a href="file:///Users/igorwaraxe/Downloads/claude-code-playground-mods/replay-theater/README.md">README</a>.</li>
+    <li>Team copy with the <code>/mods</code> switch: <a href="file:///Users/igorwaraxe/Downloads/benai-mods/plugins/replay-theater/hooks/replay-theater.mjs">replay-theater.mjs</a>. Its LICENSE is the Apache License 2.0 text.</li>
+    <li>WeAreNoCode version (8b): <a href="file:///Users/igorwaraxe/Downloads/wearenocode-claude-mods/replay-theater/hooks/register.tsx">register.tsx</a>, written in TypeScript.</li>
+    <li>Upstream folder, as the team copy's README links it: <a href="https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods/replay-theater">claude-code-playground</a>. Not confirmed from here.</li>
+    <li>API types: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a></li>
+    <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  </ul>
+
+  <nav class="lesson-nav">
+  <a href="0013-handoff.html">← 0013 Handoff</a>
+  <a href="../index.html">Index</a>
+  <a href="0015-screen-privacy.html">0015 Screen privacy →</a>
+</nav>
+
+  <p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

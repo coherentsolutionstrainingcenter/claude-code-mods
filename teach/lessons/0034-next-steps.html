@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0034: Next steps</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0034 · Family</p>
+<h1>Next steps</h1>
+<p class="lede">Next steps shows two or three likely next prompts above the prompt after each turn, and lets you press 1, 2 or 3 to draft one.</p>
+
+<dl class="meta">
+  <dt>Best version</dt><dd>Next Steps by hamzafer (ID 13b), plugin <code>next-steps</code> 0.3.0: <a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/next-steps">mods/next-steps in hamzafer/claude-code-mods</a></dd>
+  <dt>Status</dt><dd>Cloned. A copy of the repo, <code>main</code> at commit <code>2e75961</code>, is in the scratchpad. Variants 13 and 13a are video only.</dd>
+  <dt>Variants</dt><dd>13 (video only), 13a (video only), 13b (cloned, the best version)</dd>
+  <dt>Files</dt><dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, the entry module <code>hooks/register.tsx</code>, <code>hooks/bands.ts</code>, <code>types/index.d.ts</code>, and <code>tests/next-steps.test.ts</code></dd>
+  <dt>Author and license</dt><dd>Hamza Zafar, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>next-steps</code> 0.3.0, by Hamza Zafar, MIT · upstream <a href="https://github.com/hamzafer/claude-code-mods">https://github.com/hamzafer/claude-code-mods</a>.<br>Install: <code>claude plugin install next-steps@waraxe-claude-mods</code> · folder <a href="../../plugins/next-steps/">plugins/next-steps</a> · <a href="../../plugins/next-steps/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Next Steps asks Claude's small model, Haiku, for follow-up prompts after each finished answer. The prompts appear as a band above the prompt box. In an empty box, a digit puts the chosen prompt in as a draft, and nothing is sent until you press Enter.</p>
+<p>It matters for your mission because a short entry file shows the whole loop: an event, a model call, and a band drawn above the prompt.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>13</td><td>Next-action suggestion</td><td>Suggests what to do next based on the conversation</td><td>Video only: <a href="https://www.youtube.com/watch?v=moOBIaIb4a8">video</a> · <a href="../reference/mod-catalogue.html#m13">catalogue</a></td></tr>
+    <tr><td>13a</td><td>Next Steps (video)</td><td>At the end of each turn, offers three suggested next actions, or lets you dismiss them</td><td>Video only: <a href="https://www.youtube.com/watch?v=9hetShMMp2s">video</a> · <a href="../reference/mod-catalogue.html#m13a">catalogue</a></td></tr>
+    <tr><td>13b</td><td>Next Steps by hamzafer</td><td>After each turn, 2 or 3 likely next prompts above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.</td><td>Cloned: <a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/next-steps">github.com/hamzafer/claude-code-mods</a></td></tr>
+  </tbody>
+</table>
+<div class="warn"><strong>Variants 13 and 13a have no readable source.</strong> The workspace has only their names and review grades. Nothing here says what they do.</div>
+
+<h2>How it was built</h2>
+<p>The entry point is <code>hooks/hooks.json</code>, which loads <code>hooks/register.tsx</code>. The file's <code>register</code> function receives <code>on</code>. The mod subscribes to five events: <code>prompt.submit</code>, <code>turn.start</code>, <code>turn.complete</code>, <code>prompt.edit</code> and <code>ui.render</code>. It calls seven engine APIs through <code>$</code>: <code>$.env.get</code>, <code>$.ui.resolve</code>, <code>$.session.messages</code>, <code>$.model.complete</code>, <code>$.fs.read</code>, <code>$.fs.exists</code> and <code>$.agent.list</code>.</p>
+
+<h3>1. Declare the plugin and its two settings</h3>
+<p><code>plugin.json</code> declares two options under <code>userConfig</code>: <code>language</code> and <code>layout</code>. The <code>register</code> function reads them from its <code>options</code> argument. When a setting is missing, the code falls back to an empty language and the <code>auto</code> layout.</p>
+<pre><code>{
+  "name": "next-steps",
+  "version": "0.3.0",
+  "description": "After each turn, 2 or 3 likely next prompts above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "default": "",
+      "description": "Write the suggestions in this language (e.g. Korean). Empty keeps English."
+    },
+    "layout": {
+      "type": "string",
+      "title": "Layout",
+      "default": "auto",
+      "options": ["auto", "rows"],
+      "description": "auto: one row when the list fits, one per row otherwise. rows: always one suggestion per row."
+    }
+  }
+}</code></pre>
+<pre><code>{ "modules": ["./register.tsx"] }</code></pre>
+
+<h3>2. Keep the list in two atoms</h3>
+<p><code>steps</code> holds the list and the turn it belongs to, or <code>null</code>. The atoms are held by the host, so the list survives a hot reload of the file. <code>active</code> is true while the list is on screen. The comment says the where-am-i mod reads it. The constants set the limits: three items, a 60-character request, a 120-character cap per line, and a 20-character minimum answer.</p>
+<pre><code>const MODEL = 'haiku'
+const MAX_ITEMS = 3
+const MAX_CHARS = 60 // what the model is asked for
+const MAX_KEPT = 120 // a longer line is dropped, never cut: a cut draft would send half a prompt
+const MIN_ANSWER = 20 // a reply shorter than this is not worth a model call
+
+// Held by the host, so the list survives a hot reload of this file.
+const steps = atom({ plugin: 'next-steps', key: 'steps' } as const, null as NextSteps | null)
+// True while the list is on screen. where-am-i reads it and leaves out its own "next" meanwhile.
+const active = atom({ plugin: 'next-steps', key: 'active' } as const, false)</code></pre>
+
+<h3>3. Clear the list when a new prompt or turn starts</h3>
+<p><code>prompt.submit</code> and <code>turn.start</code> both clear the list. A submit also changes <code>latest</code>, so a suggestion still on its way for an older turn is dropped when it arrives.</p>
+<pre><code>  on('prompt.submit', async ($, e, next) =&gt; {
+    latest = `submit-${++submits}`
+    await setSteps($, () =&gt; null)
+    return next(e)
+  })
+
+  on('turn.start', async ($, e, next) =&gt; {
+    latest = e.turnId
+    await setSteps($, () =&gt; null)
+    return next(e)
+  })</code></pre>
+
+<h3>4. Ask the model after a finished answer</h3>
+<p>When a main turn ends with an answer of at least 20 characters, the mod starts <code>suggest</code> in the background, so the turn ends at once. Subagent turns are skipped, because <code>e.agentId</code> is set for them. A failure is caught and ignored. A failed call shows no list and raises no error.</p>
+<pre><code>  on('turn.complete', async ($, e, next) =&gt; {
+    const r = await next(e)
+    if (e.agentId) return r // a subagent's turn, not the person's
+    latest = e.turnId // also for a turn that raised no turn.start, and after a hot reload
+    if (e.reason !== 'answer' || e.answer.trim().length &lt; MIN_ANSWER) return r
+    void suggest($, e.turnId, e.answer, () =&gt; latest).catch(() =&gt; {}) // in the background, so the turn ends at once
+    return r
+  })</code></pre>
+
+<h3>5. Call Haiku with the recent transcript</h3>
+<p><code>suggest</code> returns early when any agent is still running. Otherwise it reads the session's messages and keeps the last six. It drops the latest reply from that list, because the reply goes in on its own. Each message is cut to 800 characters, and the latest reply is cut to 2,000 characters. The call uses Haiku, with at most 200 output tokens and a 20-second timeout.</p>
+<pre><code>  const r = await $.model.complete({
+    model: MODEL,
+    maxTokens: 200,
+    timeoutMs: 20_000,
+    system:
+      'You predict what a person will type next to their coding assistant, after reading a transcript of their session. ' +
+      `Give 2 or 3 short, concrete follow-up prompts, each an instruction in the imperative, under ${MAX_CHARS} characters, ` +
+      'specific to what just happened (name the file, test or feature). Plain words, no em dashes, no numbering, no quotes. ' +
+      'One per line and nothing else. If nothing sensible follows, reply with the single word NONE.\n' +
+      'Example reply:\nRun the login tests again\nAdd the same check to signup.ts\nOpen a draft PR' +
+      (language
+        ? `\nWrite every line in ${language}. Keep file names, commands and code identifiers as they are.`
+        : ''),
+    prompt: [
+      `&lt;transcript&gt;\n${messages.map(m =&gt; `[${m.role === 'user' ? 'person' : 'assistant'}] ${m.text.slice(0, 800)}`).join('\n')}\n&lt;/transcript&gt;`,
+      `&lt;latest_reply&gt;\n${answer.slice(0, 2000)}\n&lt;/latest_reply&gt;`,
+      'Write the follow-up prompts the person is likely to send next: the lines only, not a reply to the transcript.',
+    ].join('\n\n'),
+  })</code></pre>
+
+<h3>6. Clean the reply into at most three lines</h3>
+<p><code>parseSteps</code> accepts a JSON array or plain lines. It removes bullets, numbers and quotes, and it turns em dashes into commas. It drops preambles such as "Here are", drops lines that end in a colon, and drops lines over 120 characters. It removes duplicates and keeps at most three.</p>
+<pre><code>export function parseSteps(text: string): string[] {
+  const body = text.replace(/```[a-z]*\n?/gi, '').trim()
+  let lines = body.split('\n')
+  if (body.startsWith('[') || body.startsWith('{')) {
+    try {
+      const o = JSON.parse(body) as unknown
+      const arr = Array.isArray(o) ? o : Object.values(o as Record&lt;string, unknown&gt;).find(Array.isArray)
+      lines = Array.isArray(arr) ? arr.filter((x): x is string =&gt; typeof x === 'string') : []
+    } catch {
+      // not JSON after all: read it as lines
+    }
+  }
+  const out: string[] = []
+  for (const line of lines) {
+    const clean = line
+      .replace(/\*\*/g, '')
+      .replace(/^\s*(?:[-*•]|\d+[.):])\s*/, '')
+      .replace(/^["'`]+|["'`,]+$/g, '')
+      .replace(/\s*\u2014\s*/g, ', ')
+      .replace(/\.$/, '')
+      .trim()
+    if (clean === '' || clean.endsWith(':') || clean.length &gt; MAX_KEPT) continue
+    if (/^(none|no |nothing|here are|here's|sure)/i.test(clean) || /^[[\]{}]$/.test(clean)) continue
+    if (!out.some(o =&gt; o.toLowerCase() === clean.toLowerCase())) out.push(clean)
+    if (out.length === MAX_ITEMS) break
+  }
+  return out
+}</code></pre>
+
+<h3>7. Fill the box when a digit is typed</h3>
+<p>The <code>prompt.edit</code> hook runs on each edit to the box. It acts only when the box is empty and the cursor is at the start. Then <code>1</code> to <code>3</code> put the matching suggestion in the box as a draft. <code>0</code> clears the list and leaves the box empty. A pasted digit has no key, so it lands as typed text.</p>
+<pre><code>  // A digit typed into an empty prompt picks a suggestion instead of landing as text.
+  // A paste carries no key, so a pasted "1" lands as typed.
+  on('prompt.edit', async ($, e, next) =&gt; {
+    if (hasSurvey || !e.key || e.key.ctrl || e.key.meta || e.text !== '' || e.start !== 0 || e.end !== 0 || !/^[0-9]$/.test(e.inputText)) return next(e)
+    const s = await read($, steps)
+    if (!s) return next(e)
+    if (e.inputText === '0') {
+      await setSteps($, () =&gt; null)
+      return { text: '', cursor: 0 } // consumed: the box stays empty
+    }
+    const pick = s.items[Number(e.inputText) - 1]
+    if (!pick) return next(e)
+    return next({ ...e, inputText: pick }) // a draft: the person edits it or presses Enter
+  })</code></pre>
+
+<h3>8. Draw the band above the prompt</h3>
+<p>The <code>AbovePrompt</code> render draws nothing while a survey or work in progress is showing, or when the list is empty. Otherwise it defines the numbered items and the dismiss key. The code then puts the items on one line when they fit the band's width, or on one row each. It stacks the band above other mods' bands, unless a band-order file says otherwise.</p>
+<pre><code>  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =&gt; {
+    const rest = await next(e) // what other mods and Claude Code draw here stays
+    hasSurvey = e.props.hasSurvey
+    const s = await read($, steps)
+    if (e.props.hasSurvey || e.props.isWorking || !s || s.items.length === 0) return rest
+
+    const { Box, Text } = $.ui.resolve(e)
+    const sep = &lt;Text dimColor&gt;{'  ·  '}&lt;/Text&gt;
+    const item = (text: string, i: number) =&gt; [
+      &lt;Text color="cyan" bold&gt;{`${i + 1} `}&lt;/Text&gt;,
+      &lt;Text&gt;{text}&lt;/Text&gt;,
+    ]
+    const dismiss = [&lt;Text color="cyan" bold&gt;{'0 '}&lt;/Text&gt;, &lt;Text dimColor&gt;dismiss&lt;/Text&gt;]</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install next-steps@claude-code-mods</code></pre>
+<p>The marketplace is named <code>claude-code-mods</code>, and the same marketplace holds the other mods in that repo.</p>
+
+<ul class="steps">
+  <li><strong>Settings.</strong> <code>language</code> writes the suggestions in another language. Empty keeps English. <code>layout</code> is <code>auto</code> (one row when the list fits) or <code>rows</code> (one suggestion per row). Both are plugin options.</li>
+  <li><strong>Use.</strong> After an answer of 20 characters or more, the list shows above the prompt. In an empty prompt, press 1, 2 or 3 to put a suggestion in the box. Edit it, then press Enter to send. Press 0 to dismiss.</li>
+  <li><strong>Cost.</strong> One Haiku call per finished main turn that passes the length check. It is capped at 200 output tokens and 20 seconds. Each call sends up to six recent messages and the latest reply. No call is made while a background agent is running.</li>
+  <li><strong>Limits.</strong> The list holds at most three items. A submit or a new turn clears it. It is hidden while Claude works or a survey shows. The band order is read once per session, so a restart is needed to change it. The code does not retry when an agent is running, so that turn shows no list. The mod never sends a message on its own.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>What does pressing 1 do in an empty prompt, and does it send the message?</summary>
+  <p>The <code>prompt.edit</code> hook replaces the typed digit with the suggestion with that number, so the text lands in the box as a draft. It is not sent. The person edits the draft or presses Enter.</p>
+</details>
+<details class="check">
+  <summary>Why does <code>suggest</code> return early while an agent runs, and does it try again later?</summary>
+  <p>It checks <code>$.agent.list()</code> for an agent with status <code>running</code>, and returns without a model call. The comment says the main agent picks up again once its agents finish. The code does not retry, so that turn shows no list.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/mods/next-steps/hooks/register.tsx">The entry module, in the local clone: <code>hooks/register.tsx</code></a></li>
+  <li><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/next-steps">The mod on GitHub: <code>mods/next-steps</code></a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0033-claude-skins.html">← 0033 Claude Skins</a>
+  <a href="../index.html">Index</a>
+  <a href="0035-repo-heatmap.html">0035 Repo heatmap →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

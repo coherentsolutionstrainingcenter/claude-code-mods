@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0004: Mods manager</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0004 · Family</p>
+<h1>Mods manager</h1>
+<p class="lede">These mods manage your other mods from a pane. This marketplace ships Mod Store: type <code>/mods</code> to search about 2,700 community mods, see what each one can access, and install one after you confirm.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt>
+  <dd><a href="https://github.com/hellosverre/mod-store">mod-store</a> 0.1.1, from hellosverre/mod-store</dd>
+  <dt>Folder</dt>
+  <dd><code>plugins/mod-store</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code> (registers <code>/mods</code> and two tools), <code>command.run</code> (opens the pane), <code>tool.call</code> for <code>mcp__mod-store__search_mods</code> and <code>mcp__mod-store__show_mod</code> (answers Claude), <code>ui.render</code> for <code>Pane</code> (draws the list and a mod's page)</dd>
+  <dt>Calls</dt>
+  <dd><code>$.command.register</code>, <code>$.tool.register</code>, <code>$.http.fetch</code>, <code>$.process.run</code>, <code>$.store.get</code>, <code>$.store.set</code>, <code>$.clock.now</code>, <code>$.ui.open</code>, <code>$.ui.resolve</code>, <code>$.ui.toast</code>, <code>$.prompt.submit</code>, <code>$.prompt.fill</code>, and <code>atom</code>, <code>read</code>, <code>update</code> for state</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>.claude-plugin/marketplace.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>hooks/register.test.ts</code>, <code>hooks/pane.test.tsx</code>, <code>types/index.d.ts</code>, <code>tsconfig.json</code>, <code>README.md</code>, <code>LICENSE</code>, <code>demo.gif</code></dd>
+  <dt>Author and licence</dt>
+  <dd>hellosverre, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>mod-store</code> 0.1.1, by hellosverre, MIT · upstream <a href="https://github.com/hellosverre/mod-store">https://github.com/hellosverre/mod-store</a>.<br>Install: <code>claude plugin install mod-store@waraxe-claude-mods</code> · folder <a href="../../plugins/mod-store/">plugins/mod-store</a> · <a href="../../plugins/mod-store/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Mod Store is an app store for Claude Code mods, inside Claude Code. <code>/mods</code> opens a side pane. You search, filter and sort the catalogue from <a href="https://mods.aidojo.si">mods.aidojo.si</a>. Every mod gets an access badge, from green <em>Display only</em> to red <em>Network</em>. Install shows the exact command and the mod's access, and waits for you to confirm. The mod also gives Claude two tools, <code>search_mods</code> and <code>show_mod</code>, so you can ask Claude to find a mod. Claude cannot install anything: you press Install yourself.</p>
+<p>Your <a href="../MISSION.md">mission</a> is to explain each mod before other people install it, and Mod Store does the same in code: a mod's page shows what it can access before Install runs anything.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>9</td><td>mods (Ben AI)</td><td>A pane that lists each mod it finds, with On or Off, Shown or Hidden, and Open for side panes.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/benai-mods/plugins/mods">benai-mods/plugins/mods</a></td><td>Not shipped: no licence</td></tr>
+    <tr><td>9a</td><td>Mod Store</td><td>A <code>/mods</code> pane that browses about 2,700 community mods, shows what each one can access, and installs one after you confirm.</td><td>Upstream: <a href="https://github.com/hellosverre/mod-store">hellosverre/mod-store</a>. Here: <code>plugins/mod-store</code></td><td>Shipped in this marketplace</td></tr>
+    <tr><td>Ours</td><td>mod-doctor</td><td>Audits your installed mods with the plugin validator and flags failed checks, shared <code>tool.call</code> hooks and duplicate names.</td><td>Here: <code>plugins/mod-doctor</code>. See <a href="0005-mod-doctor.html">Lesson 0005: mod-doctor</a></td><td>Ours, shipped in this marketplace</td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The mod is one file, <code>hooks/register.tsx</code>. <code>hooks/hooks.json</code> points to it. <code>types/index.d.ts</code> has the <code>Mod</code> type, one slimmed catalogue record, and the pane's state: query, sort, filter, page, the selected mod, flags for confirming and installing, a status note, and the ids of installed plugins.</p>
+
+<h3>1. Register the command and two tools</h3>
+<p>At <code>session.start</code> the mod registers <code>/mods</code>, with an optional search word. It then registers two tools with <code>$.tool.register</code>. Claude sees them as <code>mcp__mod-store__search_mods</code> and <code>mcp__mod-store__show_mod</code>. Each tool description tells Claude what to do. <code>show_mod</code> says it never installs anything. Last, the hook starts loading the catalogue without waiting for it.</p>
+<pre><code>    await $.tool.register({
+      name: 'show_mod',
+      description:
+        "Opens a mod's page in the Mod Store pane, where the person sees what it can access and installs it with a button. " +
+        'Takes an id from search_mods. It never installs anything.',
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    })
+    void loadCatalog($)
+
+    return next(e)
+  })</code></pre>
+
+<h3>2. Fetch the catalogue in ranges</h3>
+<p>The catalogue is 7.5 MB, and the host cuts long bodies short. So <code>fetchCatalogText</code> asks for 2,000,000 bytes at a time with a <code>Range</code> header. A <code>200</code> reply is the whole file. A <code>206</code> reply gives the total size in <code>Content-Range</code>. A character split across two ranges comes back as U+FFFD at the end of the first range. The code drops that tail and starts the next range at the first byte it has not read whole.</p>
+<pre><code>/**
+ * Reads the whole catalogue a range at a time, since one body is cut short. The host
+ * decodes each range on its own, so a character split across two ranges comes back as
+ * U+FFFD at the end of the first. That tail is dropped and the next range starts at the
+ * first byte not yet read whole.
+ */
+export async function fetchCatalogText($: Pick&lt;EngineInterface, 'http'&gt;): Promise&lt;string&gt; {
+  let text = ''
+  let total = Infinity
+  let start = 0
+  while (start &lt; total) {
+    const res = await $.http.fetch(CATALOG_URL, {
+      headers: { Range: `bytes=${start}-${start + CHUNK_BYTES - 1}`, 'Accept-Encoding': 'identity' },
+    })
+    if (res.status === 200) return res.text
+    if (res.status !== 206) throw new Error(`HTTP ${res.status}`)
+    const size = /\/(\d+)\s*$/.exec(res.headers['content-range'] ?? '')
+    if (!size) throw new Error('the server sent no Content-Range')
+    total = Number(size[1])
+    const isLast = start + CHUNK_BYTES &gt;= total
+    const whole = isLast ? res.text : res.text.replace(/�+$/, '')
+    if (whole === '') throw new Error(`no readable text at byte ${start}`)
+    text += whole
+    start += isLast ? CHUNK_BYTES : utf8Bytes(whole)
+  }
+  return text
+}</code></pre>
+
+<h3>3. Keep a slim copy for six hours</h3>
+<p><code>loadCatalog</code> keeps the catalogue in the plugin's store, under <code>catalog-v2</code>, with the time it was saved. A copy younger than six hours is used as it is. Otherwise the mod fetches again, turns each record into a <code>Mod</code> with <code>slim</code>, and drops repeated ids. <code>slim</code> keeps only records of kind <code>mod</code> that are not archived. It sets <code>marketplace</code> only when the repository has a working <code>.claude-plugin/marketplace.json</code> at its root. If the fetch fails, the pane shows the reason.</p>
+<pre><code>async function loadCatalog($: EngineInterface, force = false) {
+  const cached = (await $.store.get(CACHE_KEY)) as { at: number; mods: Mod[] } | undefined
+  if (cached &amp;&amp; catalog.length === 0) {
+    catalog = cached.mods
+    await update($, loadedAt, () =&gt; cached.at)
+  }
+  const now = await $.clock.now()
+  if (!force &amp;&amp; cached &amp;&amp; now - cached.at &lt; MAX_AGE_MS) return
+
+  await update($, status, () =&gt; (catalog.length ? 'Refreshing…' : ''))
+  try {
+    const data = JSON.parse(await fetchCatalogText($))
+    const mods: Mod[] = []
+    const seen = new Set&lt;string&gt;()
+    for (const record of data.mods ?? []) {
+      const mod = slim(record)
+      if (!mod || seen.has(mod.id)) continue
+      seen.add(mod.id)
+      mods.push(mod)
+    }
+    catalog = mods
+    await $.store.set(CACHE_KEY, { at: now, mods })
+    await update($, loadedAt, () =&gt; now)
+    await update($, status, () =&gt; '')
+  } catch (error) {
+    const why = error instanceof Error ? error.message : String(error)
+    await update($, status, () =&gt; `Couldn't load the catalogue (${why})`)
+  }
+}</code></pre>
+
+<h3>4. Search, filter and sort</h3>
+<p><code>select</code> serves both the pane and Claude's tool. Every word of the query must appear in a mod's name, description, author or repository. The filters keep one-click installs, display-only mods, panes or bands. Stars belong to a repository, not a mod, so one big repository could fill every page. The star sort therefore takes each repository's best mod first, then each one's second, and so on.</p>
+<pre><code>/** The mods a query, filter and sort select, in order. */
+export function select(mods: Mod[], q: string, f: Filter, s: Sort): Mod[] {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean)
+  const kept = mods.filter(mod =&gt; {
+    if (f === 'installable' &amp;&amp; !mod.marketplace) return false
+    if (f === 'safe' &amp;&amp; mod.level &gt; 0) return false
+    if (f === 'pane' &amp;&amp; !mod.draws.includes('Pane')) return false
+    if (f === 'band' &amp;&amp; !mod.draws.includes('AbovePrompt')) return false
+    const hay = `${mod.name} ${mod.description} ${mod.author} ${mod.repo}`.toLowerCase()
+    return words.every(w =&gt; hay.includes(w))
+  })
+  const order: Record&lt;Sort, (a: Mod, b: Mod) =&gt; number&gt; = {
+    stars: (a, b) =&gt; b.stars - a.stars || a.name.localeCompare(b.name),
+    new: (a, b) =&gt; b.createdAt.localeCompare(a.createdAt),
+    name: (a, b) =&gt; a.name.localeCompare(b.name),
+  }
+  const sorted = kept.sort(order[s])
+  if (s !== 'stars') return sorted
+  // Stars belong to a repo, not a mod: one big repo with 45 mods would fill
+  // every page. Take each repo's best first, then each one's second, and so on.
+  const seen = new Map&lt;string, number&gt;()
+  const turn = new Map(sorted.map(mod =&gt; {
+    const n = seen.get(mod.repo) ?? 0
+    seen.set(mod.repo, n + 1)
+    return [mod, n] as const
+  }))
+  return sorted.sort((a, b) =&gt; turn.get(a)! - turn.get(b)! || order.stars(a, b))
+}</code></pre>
+
+<h3>5. Answer Claude's search</h3>
+<p>A tool that the mod registers is served by a <code>tool.call</code> hook on its full name. The hook returns <code>{ result }</code> with text for Claude, or <code>{ deny }</code> when the catalogue is not loaded. It returns 10 mods by default and 25 at most. Each line says the mod's id, author, stars, access and whether it installs in one click.</p>
+<pre><code>  on('tool.call', { tool: 'mcp__mod-store__search_mods' }, async ($, e) =&gt; {
+    const input = e as unknown as { query?: string; filter?: Filter; limit?: number }
+    await loadCatalog($)
+    if (catalog.length === 0) return { deny: (await read($, status)) || 'The mod catalogue is not loaded yet.' }
+    const limit = Math.min(25, Math.max(1, Math.round(input.limit ?? 10)))
+    const found = select(catalog, input.query ?? '', input.filter ?? 'all', 'stars')
+    const owned = new Set(await read($, installed))
+    const text = found.length
+      ? `${found.length} match${found.length === 1 ? '' : 'es'}, best ${Math.min(limit, found.length)}:\n` +
+        found.slice(0, limit).map(mod =&gt; describe(mod, owned)).join('\n')
+      : 'No mods match. Try one shorter keyword or a synonym.'
+    return { result: text }
+  })</code></pre>
+
+<h3>6. Ask before you install</h3>
+<p>On a mod's page, <strong>Install</strong> (hotkey <code>i</code>) only sets <code>isConfirming</code>. The page then shows <strong>Confirm install</strong> (hotkey <code>y</code>) and a box with the exact command and what the mod will be able to do. A mod with no marketplace at its repository root says "Manual install: see its README" instead.</p>
+<pre><code>            {isOwned ? (
+              &lt;Text color="green" bold&gt;
+                ✓ Installed
+              &lt;/Text&gt;
+            ) : !picked.marketplace ? (
+              &lt;Text dimColor&gt;Manual install: see its README&lt;/Text&gt;
+            ) : busy ? (
+              &lt;Text color="cyan"&gt;Installing…&lt;/Text&gt;
+            ) : confirming ? (
+              &lt;Button key="confirm" label="Confirm install" variant="primary" hotkey="y" autoFocus onPress={() =&gt; install($, picked)} /&gt;
+            ) : (
+              &lt;Button key="install" label="Install" variant="primary" hotkey="i" onPress={() =&gt; update($, isConfirming, () =&gt; true)} /&gt;
+            )}
+            {confirming &amp;&amp; !busy &amp;&amp; (
+              &lt;Button key="cancel" label="Cancel" plain dimColor onPress={() =&gt; update($, isConfirming, () =&gt; false)} /&gt;
+            )}
+            &lt;Link href={picked.url} label="View source ↗" /&gt;
+          &lt;/Box&gt;
+
+          {confirming &amp;&amp; (
+            &lt;Box flexDirection="column" borderStyle="round" borderColor={tier.color} paddingX={1}&gt;
+              &lt;Text bold&gt;Install {picked.name}?&lt;/Text&gt;
+              &lt;Text dimColor wrap="wrap"&gt;
+                Runs: claude plugin install {picked.name} --marketplace {picked.repo}
+              &lt;/Text&gt;
+              &lt;Text wrap="wrap"&gt;
+                It will be able to: &lt;Text color={tier.color}&gt;{picked.labels.join(', ') || noLabels(picked)}&lt;/Text&gt;
+              &lt;/Text&gt;
+            &lt;/Box&gt;
+          )}</code></pre>
+
+<h3>7. Run the install command</h3>
+<p><code>install</code> runs <code>claude plugin install</code> with <code>$.process.run</code> and a 120-second limit. On success, a toast says to run <code>/reload-plugins</code>, and the mod reads <code>claude plugin list --json</code> again to mark the mod as installed. On failure, the pane shows the last three lines of the output.</p>
+<pre><code>async function install($: EngineInterface, mod: Mod) {
+  if (!mod.marketplace) return
+  await update($, isBusy, () =&gt; true)
+  await update($, status, () =&gt; '')
+  try {
+    const { exitCode, stdout, stderr } = await $.process.run(
+      ['claude', 'plugin', 'install', mod.name, '--marketplace', mod.repo],
+      { timeoutMs: 120_000 },
+    )
+    if (exitCode === 0) {
+      $.ui.toast(`Installed ${mod.name}. Run /reload-plugins to load it.`)
+      await loadInstalled($)
+    } else {
+      const why = (stderr || stdout).trim().split('\n').slice(-3).join(' ')
+      await update($, status, () =&gt; `Install failed: ${why}`)
+    }
+  } catch (error) {
+    await update($, status, () =&gt; `Install failed: ${error instanceof Error ? error.message : error}`)
+  }
+  await update($, isConfirming, () =&gt; false)
+  await update($, isBusy, () =&gt; false)
+}</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install mod-store@waraxe-claude-mods</code></pre>
+<p>Then run <code>/reload-plugins</code> and type <code>/mods</code>. The README says it needs a Claude Code version with mods, and it was tested on 2.1.292.</p>
+
+<ul class="steps">
+  <li>Type <code>/mods</code> to open the pane, or <code>/mods spotify</code> to open it with a search.</li>
+  <li>Type in the search box. Press a chip to filter: All, One-click, Display only, Panes or Bands. Pick a sort: Most stars, Newest or A to Z.</li>
+  <li>Open a card to read the mod's page: its access badge, what it can access, where it shows up, and its validation result.</li>
+  <li>Press <code>i</code> to install, then <code>y</code> to confirm. Press <code>b</code> to go back to the list. Tab or the arrows and Enter move between items and open one.</li>
+  <li>After an install, run <code>/reload-plugins</code> to load the new mod.</li>
+  <li>Or ask Claude, for example "find me a mod that shows my Spotify song". Claude searches, compares a few, and opens its pick in the pane. The <strong>✦ Ask Claude</strong> button in the pane sends that kind of request for your search words. With no search words, it starts the request in the prompt box for you to finish.</li>
+</ul>
+
+<p><strong>Settings.</strong> The README lists none.</p>
+
+<p><strong>Cost.</strong> The mod makes no model calls of its own. Asking Claude is a normal turn. The mod uses the network to fetch the catalogue, in pieces, and keeps a slimmed copy for six hours. It runs <code>claude plugin list</code> and <code>claude plugin install</code>. The README says it reads nothing else on your machine.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>It needs the network. If the catalogue does not load, the pane shows the reason and a Retry button.</li>
+  <li>One-click install works only for a mod whose repository has a marketplace at its root.</li>
+  <li>Stars are the whole repository's, shared by all its mods.</li>
+  <li>A mod that the catalogue does not grade is shown as <em>Writes &amp; runs</em>.</li>
+  <li>A comment in the code says the mobile app draws no fields yet, so there is no search box or sort there.</li>
+  <li>An installed mod loads only after <code>/reload-plugins</code>.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Can Claude install a mod through Mod Store's two tools?</summary>
+  <p>No. <code>search_mods</code> returns text. <code>show_mod</code> opens the mod's page in the pane, and its description says it never installs anything. Only the pane's <strong>Install</strong> button, then <strong>Confirm install</strong>, runs <code>install</code>. The README adds that installs never use <code>-y</code>, so a marketplace's own commands are never auto-accepted.</p>
+</details>
+<details class="check">
+  <summary>Why does <code>fetchCatalogText</code> fetch the catalogue in ranges, and what does it do with U+FFFD?</summary>
+  <p>The host cuts long bodies short, and the catalogue is 7.5 MB, so it asks for 2,000,000 bytes at a time. Each range is decoded on its own, so a character split across two ranges ends the first one as U+FFFD. The code drops that tail, counts the UTF-8 bytes it kept, and starts the next range there.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="../../plugins/mod-store/hooks/register.tsx">The mod's source: hooks/register.tsx</a></li>
+  <li><a href="https://github.com/hellosverre/mod-store">Upstream: hellosverre/mod-store</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: <code>tool.register</code>, <code>tool.call</code>, <code>ui.open</code></a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0003-reflect-and-memory.html">← 0003 Reflect and memory</a>
+  <a href="../index.html">Index</a>
+  <a href="0005-mod-doctor.html">0005 Mod doctor →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

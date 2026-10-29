@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0036: Design picker</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0036 · design-picker</p>
+<h1>Design picker</h1>
+<p class="lede">When Claude asks you to choose a design style, a page opens in your browser with one styled card per option, and then the normal question appears.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt><dd>design-picker 0.1.0, in the waraxe-claude-mods marketplace</dd>
+  <dt>Folder</dt><dd><a href="../../plugins/design-picker/"><code>plugins/design-picker</code></a></dd>
+  <dt>Hooks</dt><dd><code>session.start</code>, <code>command.run</code> (only <code>/design-picker</code>), <code>tool.call</code> (only <code>AskUserQuestion</code>, with a <code>.catch</code>)</dd>
+  <dt>Calls</dt><dd><code>$.command.register()</code>, <code>$.model.complete()</code> (model <code>haiku</code>), <code>$.clock.now()</code>, <code>$.env.get("HOME")</code>, <code>$.fs.write()</code>, <code>$.fs.list()</code>, <code>$.process.run()</code> (the macOS <code>open</code> command)</dd>
+  <dt>Files</dt><dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.ts</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt><dd>Igor Waraxe, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>design-picker</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install design-picker@waraxe-claude-mods</code> · folder <a href="../../plugins/design-picker/">plugins/design-picker</a> · <a href="../../plugins/design-picker/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Claude asks you to choose with its question dialog, the AskUserQuestion tool. Choosing a style from a few words is hard. design-picker steps in just before that dialog opens. If the question or its options mention a design word (style, theme, palette, colour or color, font, typography, layout, look, design, UI), it makes one Haiku call for the styles. It writes one page with a card per option, side by side, to <code>~/.claude/design-picker/</code> and opens it in your browser. Each card shows the style's colours, its type, a sample heading and a sample button. Then the dialog appears, unchanged, and you choose there.</p>
+<p>It fails open. If the call or the file write fails, no page opens and the dialog appears as normal.</p>
+<p>For your <a href="../MISSION.md">mission</a>, it is the clearest case in this set of a hook that sits in front of a tool call, waits on a model call, and still lets the call through unchanged, so it is a good place to practise saying what fails open and why.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>15</td><td>Design picker</td><td>When Claude asks you to choose a design style, opens a page showing each style so you pick by seeing it</td><td>Video only: <a href="https://www.youtube.com/watch?v=ERNqRK6sMJY">video</a> · <a href="../reference/mod-catalogue.html#m15">catalogue</a></td></tr>
+    <tr><td>Shipped</td><td>design-picker</td><td>When Claude's question mentions a design word, opens a browser page with a styled card per option, then shows the normal question. <code>/design-picker last</code> reopens the newest page.</td><td>This repo: <a href="../../plugins/design-picker/">plugins/design-picker</a> (Igor Waraxe, MIT)</td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+
+<h3>1. Spot a design question</h3>
+<p>One regular expression holds the design words. <code>\b</code> on both sides means a whole word only, so the "ui" in "build" does not count. <code>wordsOf</code> joins the question, its header, and every option's label and description, so a design word anywhere in them is found.</p>
+<pre><code>// A question or option with one of these words is a design choice.
+const DESIGN_WORDS = /\b(?:styles?|themes?|palettes?|colou?rs?|fonts?|typography|layouts?|looks?|designs?|ui)\b/i</code></pre>
+<pre><code>function wordsOf(q: { question: string; header: string; options: readonly Option[] }): string {
+  return [q.question, q.header, ...q.options.flatMap(o =&gt; [o.label, o.description ?? ''])].join(' ')
+}</code></pre>
+
+<h3>2. Hook the dialog and let it through</h3>
+<p>The <code>tool.call</code> hook runs before the dialog opens, and its matcher narrows <code>e</code> to the AskUserQuestion input, so <code>e.questions</code> is typed. A plugin's own <code>$.ui.ask</code> raises this same call, so the hook acts only when <code>next.origin.plugin</code> is <code>engine</code>, which is how the types name the model's own call. It picks the first question with a design word, makes the page, and then returns <code>next(e)</code> with <code>e</code> unchanged. Two guards keep it failing open: the <code>.catch(() =&gt; undefined)</code> on <code>preview</code>, and the <code>.catch</code> handler on the hook itself, which also answers <code>next(e)</code> if the hook throws or runs out of time.</p>
+<pre><code>  on('tool.call', { tool: 'AskUserQuestion' }, async ($, e, next) =&gt; {
+    // Only the model's own question: a plugin's $.ui.ask comes through here too.
+    const asked =
+      next.origin.plugin === 'engine'
+        ? e.questions.find(q =&gt; q.options.length &gt;= 2 &amp;&amp; DESIGN_WORDS.test(wordsOf(q)))
+        : undefined
+
+    if (asked !== undefined) {
+      // Fails open: whatever goes wrong here, the dialog below still appears.
+      await preview($, asked.question, asked.options).catch(() =&gt; undefined)
+    }
+
+    // The call goes on unchanged, so the normal dialog appears.
+    return next(e)
+  }).catch(($, e, next) =&gt; next(e)) // a hook that fails or runs out of time still lets the dialog through</code></pre>
+
+<h3>3. Make one Haiku call, then write and open the page</h3>
+<p><code>preview</code> asks Haiku for the styles, with a 25-second limit. <code>$.model.complete</code> does not reject when the provider fails: it resolves with <code>isAnswered: false</code>, and the function simply returns. The file name comes from <code>$.clock.now()</code>, with the colons and the dot replaced, so names sort by time. <code>$.fs.write</code> creates the folder if it is missing.</p>
+<pre><code>/** One Haiku call for the styles, one page with a card per option, opened in the browser. */
+async function preview($: EngineInterface, question: string, options: readonly Option[]): Promise&lt;void&gt; {
+  const reply = await $.model.complete({
+    model: 'haiku',
+    prompt: stylePrompt(question, options),
+    maxTokens: 1500,
+    timeoutMs: 25000,
+  })
+  const cards = reply.isAnswered ? parseCards(reply.text, options.length) : undefined
+  const folder = await folderOf($)
+  if (cards === undefined || folder === undefined) {
+    return
+  }
+
+  const stamp = new Date(await $.clock.now()).toISOString().replace(/[:.]/g, '-')
+  const path = `${folder}/${stamp}.html`
+  await $.fs.write(path, page(question, options, cards))
+  await show($, path)
+}</code></pre>
+
+<h3>4. Ask for CSS only</h3>
+<p>The model writes no HTML. It returns a JSON array with CSS declarations for four parts of each card, and a few palette colours. The prompt asks for no <code>url()</code>, <code>@import</code> or web fonts, but the mod does not trust that: step 6 checks every declaration.</p>
+<pre><code>// The question and options are data here: the model only styles them.
+function stylePrompt(question: string, options: readonly Option[]): string {
+  return [
+    'Someone is choosing between design styles. For each numbered option, write CSS declarations that show that style: its colours, its type and its shapes.',
+    'Answer with only a JSON array, one object per option, in the same order. Each object has these keys:',
+    '"card": declarations for the card itself (background, color, font-family, border, border-radius, padding, box-shadow)',
+    '"heading": declarations for its heading',
+    '"text": declarations for its paragraph',
+    '"button": declarations for its sample button',
+    '"swatches": three to five colours of the palette, as hex strings such as "#1a2b3c"',
+    'Write declarations only, separated by semicolons: no selectors, no braces, no url(), no @import, no images and no web fonts. Name only fonts a Mac has, with a generic family last.',
+    '',
+    `Question: ${question.slice(0, 500)}`,
+    ...options.map((o, i) =&gt; `${i + 1}. ${o.label.slice(0, 200)}: ${(o.description ?? '').slice(0, 300)}`),
+  ].join('\n')
+}</code></pre>
+
+<h3>5. Read the answer as cards</h3>
+<p><code>parseCards</code> takes the first array in the answer and returns one card per option. A missing or broken entry becomes a plain card, and an answer with no array gives <code>undefined</code>, so no page is made. <code>toCard</code> keeps only real hex colours for the swatches, and passes every CSS field through <code>cleanCss</code>.</p>
+<pre><code>/** The model's JSON array as one card per option; undefined when it holds none. */
+function parseCards(text: string, count: number): Card[] | undefined {
+  const json = text.match(/\[[\s\S]*\]/)?.[0]
+  if (json === undefined) {
+    return undefined
+  }
+
+  try {
+    const list: unknown = JSON.parse(json)
+    if (!Array.isArray(list) || list.length === 0) {
+      return undefined
+    }
+
+    return Array.from({ length: count }, (_, i) =&gt; toCard(list[i]))
+  } catch {
+    return undefined
+  }
+}
+
+function toCard(raw: unknown): Card {
+  if (typeof raw !== 'object' || raw === null) {
+    return PLAIN
+  }
+
+  const o = raw as Record&lt;string, unknown&gt;
+  const swatches = Array.isArray(o.swatches)
+    ? o.swatches
+        .filter((c): c is string =&gt; typeof c === 'string' &amp;&amp; HEX.test(c.trim()))
+        .map(c =&gt; c.trim())
+        .slice(0, 6)
+    : []
+
+  return { card: cleanCss(o.card), heading: cleanCss(o.heading), text: cleanCss(o.text), button: cleanCss(o.button), swatches }
+}</code></pre>
+
+<h3>6. Clean the CSS</h3>
+<p>Each card's CSS goes into a <code>style</code> attribute, so it can style only its own element. <code>cleanCss</code> removes comments, splits the text into declarations, and keeps only those shaped like <code>property: value</code> that match nothing in <code>BANNED</code>. That list covers <code>url(</code>, <code>@import</code>, <code>expression(</code> and the image functions that can load a file. It also covers braces, angle brackets and backslashes, so a declaration cannot close its rule, leave its attribute, or hide a word behind a CSS escape.</p>
+<pre><code>// A declaration with any of these could load a file, run code, or break out of its style attribute.
+const BANNED = /url\s*\(|expression\s*\(|@import|image-set|image\s*\(|cross-fade|element\s*\(|javascript:|behavior|binding|[{}&lt;&gt;@\\]/i
+const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i</code></pre>
+<pre><code>/** Keeps plain "property: value" declarations, and drops any that could load or run something. */
+function cleanCss(raw: unknown): string {
+  if (typeof raw !== 'string') {
+    return ''
+  }
+
+  return raw
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .split(';')
+    .map(d =&gt; d.trim())
+    .filter(d =&gt; /^-?[a-z][a-z-]*\s*:/i.test(d) &amp;&amp; !BANNED.test(d))
+    .slice(0, 24)
+    .join('; ')
+}</code></pre>
+
+<h3>7. Escape every option text and lock the page down</h3>
+<p><code>esc</code> turns <code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code> and both quotes into entities. It is applied to every option label and description, to the question, and to each style attribute. Escaping <code>&amp;</code> also matters for the CSS, because it stops an entity such as <code>&amp;#117;</code> from spelling out <code>url(</code> after the sanitiser has run. The page also carries a Content Security Policy that lets it load nothing and run nothing, so even a missed declaration could not fetch a file.</p>
+<pre><code>/** Escapes text for HTML, in an element or inside a quoted attribute. */
+function esc(text: string): string {
+  return text.replace(/&amp;/g, '&amp;amp;').replace(/&lt;/g, '&amp;lt;').replace(/&gt;/g, '&amp;gt;').replace(/"/g, '&amp;quot;').replace(/'/g, '&amp;#39;')
+}
+
+function page(question: string, options: readonly Option[], cards: readonly Card[]): string {
+  const figures = options.map((o, i) =&gt; {
+    const c = cards[i] ?? PLAIN
+    const swatches = c.swatches.map(s =&gt; `&lt;span style="background:${s}"&gt;&lt;/span&gt;`).join('')
+
+    return [
+      '&lt;figure&gt;',
+      `&lt;div class="card" style="${esc(c.card)}"&gt;`,
+      `&lt;h2 style="${esc(c.heading)}"&gt;${esc(o.label)}&lt;/h2&gt;`,
+      `&lt;p style="${esc(c.text)}"&gt;${esc(o.description ?? '')}&lt;/p&gt;`,
+      `&lt;button type="button" style="${esc(c.button)}"&gt;Get started&lt;/button&gt;`,
+      `&lt;div class="swatches"&gt;${swatches}&lt;/div&gt;`,
+      '&lt;/div&gt;',
+      `&lt;figcaption&gt;Option ${i + 1}: ${esc(o.label)}&lt;/figcaption&gt;`,
+      '&lt;/figure&gt;',
+    ].join('\n')
+  })</code></pre>
+<pre><code>    // The page loads nothing and runs nothing, whatever the cards hold.
+    `&lt;meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"&gt;`,</code></pre>
+
+<h3>8. Open the page, and reopen the newest</h3>
+<p>The folder comes from <code>$.env.get("HOME")</code>. The page is opened with the macOS <code>open</code> command through <code>$.process.run</code>, which takes an argument list and no shell, so the path needs no quoting. <code>/design-picker last</code> lists the folder, picks the last name in sorted order, which is the newest page, and opens it.</p>
+<pre><code>async function folderOf($: EngineInterface): Promise&lt;string | undefined&gt; {
+  const home = await $.env.get('HOME')
+
+  return home === undefined || home === '' ? undefined : `${home}/${FOLDER}`
+}
+
+/** macOS's open hands the page to the default browser. */
+async function show($: EngineInterface, path: string): Promise&lt;boolean&gt; {
+  const run = await $.process.run(['open', path], { timeoutMs: 10000 }).catch(() =&gt; undefined)
+
+  return run?.exitCode === 0
+}</code></pre>
+<pre><code>  on('command.run', { command: 'design-picker' }, async ($, e) =&gt; {
+    if (e.args.trim() !== 'last') {
+      return { text: 'Use /design-picker last to reopen the newest page.' }
+    }
+
+    const folder = await folderOf($)
+    const entries = folder === undefined ? [] : await $.fs.list(folder).catch(() =&gt; [])
+    // Names are times, so the last name in order is the newest page.
+    const newest = entries
+      .filter(entry =&gt; entry.kind === 'file' &amp;&amp; entry.name.endsWith('.html'))
+      .map(entry =&gt; entry.name)
+      .sort()
+      .at(-1)
+    if (folder === undefined || newest === undefined) {
+      return { text: 'No design picker page yet.' }
+    }
+
+    const path = `${folder}/${newest}`
+    return (await show($, path)) ? { text: `Opened ${path}` } : { text: `Could not open ${path}. Open it in a browser yourself.` }
+  })</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install design-picker@waraxe-claude-mods</code></pre>
+<ul class="steps">
+  <li>Nothing to switch on. When Claude asks a design question, the page opens in your browser, and then the dialog appears in Claude Code. Pick there.</li>
+  <li><code>/design-picker last</code> opens the newest page again. Pages are kept in <code>~/.claude/design-picker/</code>, one file per question.</li>
+  <li><strong>Cost:</strong> one Haiku call for each design question Claude asks. The call sends the question and options plus about 250 tokens of instructions, can return up to 1,500 tokens, and stops after 25 seconds. Other questions make no call.</li>
+</ul>
+
+<h3>Limits</h3>
+<ul class="steps">
+  <li>The page opens with the macOS <code>open</code> command. On another system it is written, but you open it yourself.</li>
+  <li>The dialog waits for the page: it appears after the call and the write finish, usually a few seconds and at most about 25.</li>
+  <li>Only the first question in the dialog that mentions a design word gets cards.</li>
+  <li>The word match is simple: "Does this look right?" counts as a design question too.</li>
+  <li>The page is a static file. It cannot answer the dialog for you.</li>
+  <li>Cards use only fonts installed on your Mac, because the page loads no web fonts.</li>
+  <li>Old pages are not deleted.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>The Haiku call comes back with an overloaded error. What does the person see?</summary>
+  <p>Just the normal dialog. <code>$.model.complete</code> resolves with <code>isAnswered: false</code> instead of rejecting, so <code>cards</code> is <code>undefined</code> and <code>preview</code> returns before writing anything. The hook then returns <code>next(e)</code>. If something did throw, the <code>.catch</code> on <code>preview</code>, or the hook's own <code>.catch</code> handler, would still pass the call through.</p>
+</details>
+<details class="check">
+  <summary>An option is labelled <code>&lt;img src=x onerror=alert(1)&gt;</code>, and the model answers <code>background: url(https://tracker.example/p.png)</code>. What reaches the page?</summary>
+  <p>The label appears as plain text, because <code>esc</code> turns its angle brackets into <code>&amp;lt;</code> and <code>&amp;gt;</code>. The declaration is dropped, because it matches <code>url\s*\(</code> in <code>BANNED</code>. Even if a declaration slipped through, the page's Content Security Policy, <code>default-src 'none'</code>, would block the image.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li>Main source: <a href="../../plugins/design-picker/hooks/register.ts">plugins/design-picker/hooks/register.ts</a></li>
+  <li>API types for <code>tool.call</code>, the AskUserQuestion input, <code>next.origin</code>, <code>$.model.complete</code>, <code>$.fs.write</code> and <code>$.process.run</code>: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0035-repo-heatmap.html">← 0035 Repo heatmap</a>
+  <a href="../index.html">Index</a>
+  <a href="0037-daily-challenge.html">0037 Daily challenge →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

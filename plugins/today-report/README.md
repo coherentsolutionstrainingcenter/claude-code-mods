@@ -1,0 +1,3 @@
+# today-report
+
+Today's Report totals your Claude Code work from the session logs in `~/.claude/projects`. Open it with `/today-report`, then pick day, week, month or year. For each period it shows tasks, the time they would have taken you, the value at your hourly rate, and tokens in and out, with the top task type and model. Set minutes per task and your hourly rate with `/plugin configure today-report`. Both are estimates, and the tokens come straight from the logs. The first run reads every log, which can take a little while, and later runs read only the logs that changed.

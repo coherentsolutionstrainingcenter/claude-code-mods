@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0027: Decision tree</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0027 · Family</p>
+<h1>Decision tree</h1>
+<p class="lede">After Claude ends a reply with a question, this family puts the choice in a side pane and lets you explore each option in a forked session.</p>
+
+<dl class="meta">
+  <dt>Best version</dt>
+  <dd>decision-tree 0.2.3 by Ray Amjad, from <a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/decision-tree">ray-amjad/claude-code-mods</a></dd>
+  <dt>Status</dt>
+  <dd>Cloned. I read the clone in the scratchpad, at <code>secret-box/repo/plugins/decision-tree</code>.</dd>
+  <dt>Variants</dt>
+  <dd>37</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.jsx</code> (433 lines, all read), <code>README.md</code></dd>
+  <dt>Author and license</dt>
+  <dd>Ray Amjad, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>decision-tree</code> 0.2.3, by Ray Amjad, MIT · upstream <a href="https://github.com/ray-amjad/claude-code-mods">https://github.com/ray-amjad/claude-code-mods</a>.<br>Install: <code>claude plugin install decision-tree@waraxe-claude-mods</code> · folder <a href="../../plugins/decision-tree/">plugins/decision-tree</a> · <a href="../../plugins/decision-tree/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Decision tree is one hook module, <code>hooks/register.jsx</code>. After each reply, a regex and a small model call check whether Claude is asking you to choose. If it is, a model fork explains each option in a side pane, and you can explore any option in a forked session.</p>
+<p>It matters for your mission because this one file uses several hook events and API calls, so it is a good test of whether you can name each call and say why it is there.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td>37</td><td>decision-tree</td><td>Explains Claude's closing question in a side pane and explores each option in a forked session.</td><td>Cloned: <a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/decision-tree">scratchpad clone</a>, or <a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/decision-tree">GitHub</a>.</td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The mod is one file with one <code>register</code> function. That function declares each hook with <code>on(...)</code>. The steps below follow the order in which the code runs.</p>
+
+<h3>1. Check the end of the reply with a regex</h3>
+<p>This check costs nothing, so it runs first. It looks at the last paragraph for a question mark. It also accepts two or more numbered or lettered options with a word such as <em>which</em> or <em>choose</em>. Most replies stop here.</p>
+<pre><code>// Cheap check, no model: does the end of the reply ask something?
+// A question mark in the last paragraph, or a numbered / lettered / bulleted list of options.
+function looksLikeQuestion(answer) {
+  const tail = answer.trim().slice(-1500)
+  const paragraphs = tail.split(/\n\s*\n/)
+  const last = paragraphs[paragraphs.length - 1] || ''
+  if (/\?\s*(\*\*|_|`)?\s*$/.test(last) || /\?\s*$/m.test(last)) return true
+  const options = tail.match(/^\s*(\d+[.)]|[A-D][.):]|[-*]\s+\*\*Option|Option [A-D1-9])/gm) || []
+  return options.length &gt;= 2 &amp;&amp; /\b(which|prefer|choose|pick|want|should I|let me know)\b/i.test(tail)
+}</code></pre>
+
+<h3>2. Ask a small model to confirm the question</h3>
+<p><code>needsDecision</code> sends the last 2000 characters of the reply to the gate model with <code>$.model.complete</code>. It allows at most 5 output tokens and waits up to 20 seconds. Only an answer that starts with <em>yes</em> counts. The caller passes <code>options.gateModel</code>, which defaults to <code>haiku</code>.</p>
+<pre><code>// The gate: a small model confirms the question needs a real decision from the user
+async function needsDecision($, answer, model) {
+  const r = await $.model.complete({
+    model,
+    system: 'You read the end of an AI coding assistant reply. Answer YES if it ends by asking ' +
+      'the user to decide, choose, or supply something before work can go on. Answer NO for ' +
+      'rhetorical questions, pleasantries such as "anything else?", or a reply that just reports. ' +
+      'Reply with YES or NO only.',
+    prompt: answer.trim().slice(-2000),
+    maxTokens: 5,
+    timeoutMs: 20000,
+  })
+  return r.isAnswered &amp;&amp; /^\s*yes/i.test(r.text)
+}</code></pre>
+
+<h3>3. Explain the choice with a fork</h3>
+<p><code>explainRoot</code> makes the reply the root of the tree, and opens the pane with a reading message. Then <code>$.model.fork</code> asks for JSON with the question, the options, what each leads to, pros and cons, and a recommendation. The call passes only a prompt. The prompt asks the fork not to use tools. The call itself sets no tool list.</p>
+<pre><code>async function explainRoot($, answer) {
+  const node = { sid: await $.session.id(), answer, status: 'thinking', children: [] }
+  root = node
+  path = []
+  view = 'node'
+  await openPane($, false)
+  $.ui.invalidate('ui.render')
+
+  const r = await $.model.fork({
+    prompt: 'Your last reply ended by asking me a question. Do not answer it and do not use tools. ' +
+      'Help me answer it. Reply with JSON only, no code fence, in this shape: ' + SHAPE + '. ' +
+      'Use the options you offered; if you offered none, give the 2 to 4 answers I would most ' +
+      'likely pick. At most 2 pros and 2 cons each. No em or en dashes.',
+  })
+  settle(node, r.isAnswered ? r.text : '', r.isAnswered ? 'the fork did not return JSON' : r.reason)
+  if (root !== node) return
+  $.ui.invalidate('ui.render')
+}</code></pre>
+
+<h3>4. Run the check when a turn ends</h3>
+<p>The <code>turn.complete</code> hook calls <code>next(e)</code> first, so Claude Code finishes its own work. Then it skips headless runs, unless <code>DECISION_TREE_WAIT</code> is set. It also skips subagent replies, branch runs, and any turn that did not end with an answer. The fork runs in the background, so the prompt is not held up. A <code>-p</code> run waits for it only when the wait flag is set.</p>
+<pre><code>  on('turn.complete', async ($, e, next) =&gt; {
+    const result = await next(e)
+    // Headless: nothing would be shown, so skip the gate and the fork, unless DECISION_TREE_WAIT asks for it
+    const wait = (await $.env.get('DECISION_TREE_WAIT')) === '1'
+    if (headless &amp;&amp; !wait) return result
+    // A branch's own claude -p run never explains its own replies
+    if ((await $.env.get('DECISION_TREE_CHILD')) === '1') return result
+    if (e.agentId || e.reason !== 'answer' || !looksLikeQuestion(e.answer)) return result
+    if (!(await needsDecision($, e.answer, options.gateModel || 'haiku'))) return result
+    // Run the fork without holding up the prompt; in a -p run, wait so the process lives on
+    const work = explainRoot($, e.answer).catch(err =&gt; $.ui.log('decision-tree failed: ' + err))
+    if (wait) await work
+    return result
+  })</code></pre>
+
+<h3>5. Explore an option by forking at that question</h3>
+<p><code>explore</code> starts <code>claude -p</code> with <code>--resume</code> and <code>--fork-session</code>. It cuts the fork at the message that asked the question, using <code>--resume-session-at</code>. The branch may use Read, Grep and Glob only. Bash, Edit, Write and NotebookEdit are disallowed. If the message cannot be found, the branch forks from the latest point, and the code logs that.</p>
+<pre><code>  const args = ['claude', '-p', whatIf(option),
+    '--resume', node.sid, '--fork-session', '--output-format', 'json',
+    '--permission-mode', 'default', '--allowedTools=Read,Grep,Glob',
+    '--disallowedTools=Bash,Edit,Write,NotebookEdit']
+  if (node.msgId) args.push('--resume-session-at', node.msgId)
+
+  let out = null
+  try {
+    const run = await $.process.run(args, {
+      cwd: await $.session.cwd(),
+      env: { DECISION_TREE_CHILD: '1' },
+      timeoutMs: 300000,
+    })
+    out = resultOf(run.stdout)</code></pre>
+
+<h3>6. Draw one box per option</h3>
+<p>The pane is a <code>ui.render</code> hook for the <code>Pane</code> component, with the request id <code>question</code>. For each option it draws a box. The box shows the detail, what the option leads to, its pros and cons, and an Explore button. The recommended option gets a green border.</p>
+<pre><code>        {data.options.map((o, i) =&gt; {
+          const isPick = o.label === pick &amp;&amp; !o.mine
+          const child = node.children[i]
+          const color = isPick ? 'green' : o.mine ? 'yellow' : 'gray'
+          return (
+            &lt;Box key={'opt' + i} flexDirection="column"&gt;
+              &lt;Text dimColor&gt;{'  │'}&lt;/Text&gt;
+              &lt;Box borderStyle={isPick ? 'bold' : 'round'} borderColor={color} paddingX={1} flexDirection="column"&gt;
+                &lt;Text bold color={color === 'gray' ? 'white' : color}&gt;{String.fromCharCode(65 + i) + '  ' + o.label + (isPick ? '   ★ recommended' : '') + (o.mine ? '   ✎ your answer' : '')}&lt;/Text&gt;
+                {o.detail ? &lt;Text&gt;{o.detail}&lt;/Text&gt; : null}
+                {o.leadsTo ? &lt;Text color="blue"&gt;{'→ ' + o.leadsTo}&lt;/Text&gt; : null}
+                {(o.pros || []).map((p, j) =&gt; &lt;Text key={'p' + j} color="green"&gt;{'+ ' + p}&lt;/Text&gt;)}
+                {(o.cons || []).map((c, j) =&gt; &lt;Text key={'c' + j} color="red"&gt;{'- ' + c}&lt;/Text&gt;)}
+                &lt;Button key={'x' + i} label={child ? (child.status === 'exploring' ? 'Exploring...' : 'Open branch ▸') : 'Explore ▸'}
+                  onPress={() =&gt; explore($, i)} /&gt;
+              &lt;/Box&gt;
+            &lt;/Box&gt;
+          )
+        })}</code></pre>
+
+<h3>7. Add the /explain command</h3>
+<p><code>session.start</code> registers <code>/explain</code> in an interactive session. The <code>command.run</code> hook reads its argument. A letter from A to H explores that option. The word <code>other</code>, followed by text, explores your own answer. <code>map</code>, <code>back</code>, <code>top</code> and <code>continue</code> move around the tree.</p>
+<pre><code>  on('command.run', { command: 'explain' }, async ($, e) =&gt; {
+    if (!root) return { text: 'No question to explain yet.' }
+    const raw = (e.args || '').trim()
+    const arg = raw.toLowerCase()
+    view = arg === 'map' ? 'map' : 'node'
+    if (arg === 'back') path = path.slice(0, -1)
+    else if (arg === 'top') path = []
+    else if (arg === 'continue') await continueBranch($, nodeAt(path))
+    else if (/^[a-h]$/.test(arg) || /^other\s+\S/.test(arg)) {
+      const own = /^other\s/.test(arg) ? raw.replace(/^other\s+/i, '') : undefined
+      const work = explore($, own ? -1 : arg.charCodeAt(0) - 97, own).catch(err =&gt; $.ui.log('explore failed: ' + err))
+      if ((await $.env.get('DECISION_TREE_WAIT')) === '1') await work
+    }
+    $.ui.invalidate('ui.render')
+    await openPane($, true)
+    return {}
+  })</code></pre>
+
+<div class="warn">
+<strong>Where the README and the source differ.</strong>
+<ul>
+  <li>The README says an Explore branch takes 12 to 20 seconds. The pane says "about 20 to 60s". Each branch run may take up to five minutes.</li>
+  <li>The README says the fork "has no tools". The call passes no tool list. Only the prompt asks the fork not to use tools.</li>
+  <li>The README shows the branch command in a short form. The code also passes <code>--output-format json</code>, <code>--permission-mode default</code> and the allow and deny lists.</li>
+</ul>
+</div>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add ray-amjad/claude-code-mods
+claude plugin install decision-tree@claude-code-mods</code></pre>
+<p>The marketplace name is <code>claude-code-mods</code>, from <code>.claude-plugin/marketplace.json</code>.</p>
+
+<ul class="steps">
+  <li>Ask Claude something that needs a choice, such as "Which storage should I use?" If the reply ends with that question, the pane opens.</li>
+  <li>Press Explore on an option, or type <code>/explain b</code> to explore option B. The pane shows what that branch would do, its steps, and the next question.</li>
+  <li>Type your own answer in the Other box, or run <code>/explain other &lt;answer&gt;</code>.</li>
+  <li>Run <code>/explain map</code> to see the whole tree. Run <code>/explain back</code> or <code>/explain top</code> to move up.</li>
+  <li>Run <code>/explain continue</code> to get a command that opens the branch as a live session. Inside Herdr, the command runs in a new pane. Elsewhere, it is copied to your clipboard.</li>
+</ul>
+
+<p>Nothing you pick in the pane goes back to Claude. You still answer in the prompt.</p>
+
+<p><strong>Cost.</strong> Each reply that passes the regex makes one call to the gate model. Each explanation makes one fork, which replays the whole session. The README says that replay is served from the prompt cache. Each Explore runs a full <code>claude -p</code> process, and the README says a branch costs a full turn.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>In <code>-p</code> and SDK runs the pane is never drawn. Nothing runs unless <code>DECISION_TREE_WAIT=1</code> is set.</li>
+  <li>If Claude Code cannot place the pane, a toast says to run <code>/explain</code>. The README says Claude Code places the pane only in a terminal at least 144 columns wide.</li>
+  <li>The tree lives in the mod's memory. A new question, a restart or a reload clears it. Branch sessions stay on disk, and you can resume them by id.</li>
+  <li><code>--resume-session-at</code> is an undocumented Claude Code flag. The README says it was tested on version 2.1.296.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the mod run a regex before it calls any model?</summary>
+  <p>The regex costs nothing, and most replies do not end with a question. The gate model runs only when <code>looksLikeQuestion</code> returns true. So most turns make no model call.</p>
+</details>
+<details class="check">
+  <summary>Why can an Explore branch read files but not change them?</summary>
+  <p>The code allows only <code>Read,Grep,Glob</code> with <code>--allowedTools</code>. It blocks <code>Bash,Edit,Write,NotebookEdit</code> with <code>--disallowedTools</code>. The branch can look at the code and plan, but it cannot edit files or run commands.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/ray-amjad/claude-code-mods/blob/main/plugins/decision-tree/hooks/register.jsx">The mod's source: hooks/register.jsx</a> (local clone)</li>
+  <li><a href="https://github.com/ray-amjad/claude-code-mods/blob/main/plugins/decision-tree/README.md">The mod's README</a> (local clone)</li>
+  <li><a href="https://github.com/ray-amjad/claude-code-mods/tree/main/plugins/decision-tree">decision-tree on GitHub</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0026-diagram-pane.html">← 0026 Diagram pane</a>
+  <a href="../index.html">Index</a>
+  <a href="0028-plain-english.html">0028 Plain English →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

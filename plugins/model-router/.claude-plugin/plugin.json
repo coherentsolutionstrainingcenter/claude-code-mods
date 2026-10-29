@@ -1,0 +1,9 @@
+{
+  "name": "model-router",
+  "version": "0.1.0",
+  "description": "Picks haiku, sonnet or opus for each subagent Claude starts without naming a model, from one small Haiku call, and never changes the main chat's model",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT"
+}

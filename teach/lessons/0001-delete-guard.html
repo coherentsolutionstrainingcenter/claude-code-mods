@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0001: Delete guard</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0001 · Family</p>
+<h1>Delete guard</h1>
+<p class="lede">These mods guard against a bad delete: they stop a risky shell command such as <code>rm -rf</code> and show what it would remove, or keep a copy so the delete can be undone.</p>
+
+<dl class="meta">
+  <dt>Best version</dt>
+  <dd><a href="file:///Users/igorwaraxe/Downloads/claude-code-playground-mods/blast-radius">Blast Radius (21), Anthropic's sample, local copy</a> · <a href="https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods/blast-radius">source on GitHub</a></dd>
+  <dt>Status</dt>
+  <dd>Tier 1 in your ranking, grade 8. A local copy of the GitHub folder, version 0.1.0, is on this Mac. The README says it needs Claude Code 2.1.287 or later. Its last fixes were tested with Node against a stand-in for Claude Code, not re-run in a live session. Variants 21a and 21b are video only.</dd>
+  <dt>Installed</dt>
+  <dd>Yes, as <code>blast-radius@claude-code-playground-mods</code>.</dd>
+  <dt>Variants</dt>
+  <dd>21 (best), 21a, 21b, and our own delete-backup (<a href="0002-delete-backup.html">Lesson 0002</a>)</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/blast-radius.mjs</code>, <code>README.md</code>, and a <code>screenshots</code> folder. <code>hooks.json</code> names <code>./blast-radius.mjs</code> as its only module.</dd>
+  <dt>Author and license</dt>
+  <dd>Claude Code DevRel (the author in <code>plugin.json</code>). Copyright 2026 Anthropic PBC. Apache-2.0, in <a href="file:///Users/igorwaraxe/Downloads/claude-code-playground-mods/LICENSE">LICENSE</a>.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>blast-radius</code> 0.1.0, by Anthropic (Claude Code DevRel), Apache-2.0 · upstream <a href="https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods">https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods</a>.<br>Install: <code>claude plugin install blast-radius@waraxe-claude-mods</code> · folder <a href="../../plugins/blast-radius/">plugins/blast-radius</a> · <a href="../../plugins/blast-radius/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Blast Radius watches Claude's Bash calls. When a command is risky, such as <code>rm -rf</code>, <code>git reset --hard</code>, <code>git clean</code>, a force push or a database migration, it holds the call and works out what the command would change. A pane lists that change with two buttons: <strong>Proceed</strong> runs the command, and <strong>Cancel</strong> refuses it and tells Claude why.</p>
+<p>It matters for your mission because it shows, in one file, three patterns you will need to explain in your README: holding a <code>tool.call</code> until a person answers, drawing in a <code>Pane</code> or the band above the prompt, and measuring with <code>$.process.run</code>.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>21</td><td>Blast Radius (best)</td><td>Holds <code>rm -r</code> or <code>-f</code>, <code>git reset --hard</code>, <code>git clean</code>, force pushes and migrations. Lists the files, changes or commits they would touch. Proceed or Cancel.</td><td>Local copy: <a href="file:///Users/igorwaraxe/Downloads/claude-code-playground-mods/blast-radius">claude-code-playground-mods/blast-radius</a> · <a href="https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods/blast-radius">GitHub</a> · <a href="../reference/mod-catalogue.html#m21">catalogue</a></td></tr>
+    <tr><td>21a</td><td>rm -rf guard with turn summary</td><td>Stops a delete command before it runs and asks you. You can refuse it, or give a reason and Claude suggests a safer command. Each turn ends with a pop-up showing its time and tool count.</td><td>Video only: <a href="https://www.youtube.com/watch?v=XaYubuLtW8M">video</a> · <a href="../reference/mod-catalogue.html#m21a">catalogue</a></td></tr>
+    <tr><td>21b</td><td>Delete with undo (ideas shown)</td><td>Four ideas for one delete event: pause and list the files that would go; move them to the recycle bin instead; show a receipt of what was deleted and where; back them up first so you can undo.</td><td>Video only: <a href="https://www.youtube.com/watch?v=Rn4nmFRPe0s">video</a> · <a href="../reference/mod-catalogue.html#m21b">catalogue</a></td></tr>
+    <tr><td>ours</td><td>delete-backup</td><td>Builds 21b's backup idea. Copies what an <code>rm</code> is about to delete into a backup folder first. <code>/undo-delete</code> puts the newest deletion back.</td><td><a href="0002-delete-backup.html">Lesson 0002</a></td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>Blast Radius is one plain JavaScript file, <code>hooks/blast-radius.mjs</code>, about 530 lines. It uses two events, <code>tool.call</code> and <code>ui.render</code>. Its calls are <code>$.session.cwd</code>, <code>$.process.run</code>, <code>$.clock.now</code>, <code>$.ui.open</code>, <code>$.ui.close</code>, <code>$.ui.invalidate</code>, <code>$.ui.resolve</code> and <code>$.ui.toast</code>. It does not call a model.</p>
+
+<h3>1. Hook Bash and classify the command</h3>
+<p>The <code>tool.call</code> hook is filtered to the Bash tool. It passes the command text to <code>classify</code>. If that returns <code>null</code>, the call goes on at once with <code>next(e)</code>.</p>
+<pre><code>export function register(on) {
+  on("tool.call", { tool: "Bash" }, async ($, e, next) =&gt; {
+    const risk = classify(String(e.command ?? ""));
+    if (risk === null) {
+      return next(e);
+    }</code></pre>
+<p><code>classify</code> splits the command line on <code>&amp;&amp;</code>, <code>||</code>, <code>;</code>, <code>|</code> and new lines. It returns the first risky part. On the way it follows <code>cd</code>, <code>pushd</code>, <code>popd</code> and <code>git -C</code>, so it knows which folder to measure. A <code>cd</code> inside <code>( ... )</code> is dropped when the brackets close. For each part, <code>classifySegment</code> strips a leading <code>VAR=value</code>, <code>sudo</code> and its options, words such as <code>command</code>, <code>env</code>, <code>time</code> and <code>then</code>, and <code>nice</code>. Then it reads the first word. An <code>rm</code> is risky only with a recursive or force flag:</p>
+<pre><code>    if (cmd === "rm" || cmd.endsWith("/rm")) {
+      const flags = args.filter((a) =&gt; a.startsWith("-"));
+      const recursive = flags.some((f) =&gt; f === "--recursive" || (/^-[^-]/.test(f) &amp;&amp; /[rR]/.test(f)));
+      const force = flags.some((f) =&gt; f === "--force" || (/^-[^-]/.test(f) &amp;&amp; f.includes("f")));
+      if (recursive || force) {
+        const targets = args.filter((a) =&gt; !a.startsWith("-") || a === "-");
+        return { kind: "rm", label: `rm ${flags.join(" ")}`.trim(), targets, dir };
+      }
+    }</code></pre>
+<p>The same function catches <code>git reset --hard</code>, <code>git clean</code>, <code>git push</code> with <code>--force</code>, <code>-f</code>, <code>--force-with-lease</code> or a <code>+ref</code>, and <code>git checkout</code> or <code>git restore</code> with <code>.</code>. It also catches <code>alembic upgrade</code>, <code>db:migrate</code>, <code>prisma migrate</code>, <code>manage.py migrate</code>, and any other command with a <code>migrate</code> argument that is not on a short read-only list.</p>
+<div class="note"><strong>It splits text, not shell grammar.</strong> The split runs on the raw command line, before quotes are read. So a commit message that contains <code>; rm -rf</code> is held too. The README lists this as a known harmless false alarm. A backslash in front, as in <code>\rm</code>, is removed, because the code treats it as "still rm".</div>
+<div class="note"><strong>Why every call is spelled out.</strong> The comment at the top of the file says the host reads <code>on(...)</code> and <code>$.noun.method(...)</code> from the source. So they are written literally, and helpers that take <code>$</code>, such as <code>measure</code>, are top-level functions.</div>
+
+<h3>2. Hold the call with short sleeps until a button is pressed</h3>
+<p>A risky call claims the module-level <code>held</code> slot and then waits in a loop. Each turn of the loop checks three things: did the turn get interrupted, has the 10-minute limit passed, and has a button set the decision. Between checks it runs <code>sleep 0.25</code> as a child process. <code>POLL_SECONDS</code> is <code>"0.25"</code> and <code>HOLD_LIMIT_MS</code> is <code>10 * 60 * 1000</code>.</p>
+<pre><code>      const startedAt = await $.clock.now();
+      while (mine.decision === null) {
+        if (next.signal.aborted) {
+          mine.decision = "interrupted";
+          break;
+        }
+        if ((await $.clock.now()) - startedAt &gt; HOLD_LIMIT_MS) {
+          mine.decision = "timeout";
+          break;
+        }
+        await $.process.run(["sleep", POLL_SECONDS], { timeoutMs: 5000 });
+      }</code></pre>
+<div class="note"><strong>Why sleep in a child process?</strong> A hook has 10 seconds of its own time per dispatch (<code>HookBudget</code>, <code>ms: 10_000</code> in the API types). Past that, the hook is treated as absent. The types also say the clock stops while a <code>$</code> call is in flight, with one exception: a <code>$.clock</code> wait still runs on the budget. So <code>$.clock.sleep</code> would use up the 10 seconds, but <code>$.process.run(["sleep", ...])</code> costs the hook nothing. That is how it can wait 10 minutes for you.</div>
+<div class="note"><strong>One hold at a time.</strong> If a second risky call arrives, from a subagent for example, it loops on the same short sleep until <code>held</code> is free. The comment says <code>held</code> is claimed with no <code>await</code> between the check and the claim, so two waiting calls can't both get through.</div>
+
+<h3>3. Measure the blast radius with scripts that take paths as arguments</h3>
+<p>Before the pane opens, <code>measure</code> works out the change. It picks one of three helpers: <code>measureRm</code>, <code>measureGit</code> or <code>measureMigrations</code>. For <code>rm</code>, a fixed bash script expands globs and <code>~</code>, counts files with <code>find</code>, and sums sizes with <code>du -skc</code>. The paths go in as arguments after the script, never as part of it.</p>
+<pre><code>// The paths are passed to bash as arguments, never as source, so nothing in
+// them runs. compgen -G expands a glob without command substitution.
+const RM_SCRIPT = `
+shopt -s nullglob dotglob
+paths=()
+for p in "$@"; do
+  case "$p" in "~"|"~/"*) p="$HOME\${p#\\~}";; esac
+  if [[ "$p" == *[*?[]* ]]; then
+    while IFS= read -r m; do paths+=("$m"); done &lt; &lt;(compgen -G "$p")
+  elif [[ -e "$p" || -L "$p" ]]; then
+    paths+=("$p")
+  fi
+done
+if (( \${#paths[@]} == 0 )); then echo "0 0 0"; exit 0; fi
+# A relative path gets ./ in front, so find never reads a name like -delete as an action.
+for i in "\${!paths[@]}"; do case "\${paths[$i]}" in /*) ;; *) paths[$i]="./\${paths[$i]}";; esac; done
+files=$(find "\${paths[@]}" \\( -type f -o -type l \\) 2&gt;/dev/null | wc -l | tr -d ' ')
+kb=$(du -skc "\${paths[@]}" 2&gt;/dev/null | tail -n1 | cut -f1)
+echo "$files $(( \${kb:-0} * 1024 )) \${#paths[@]}"
+find "\${paths[@]}" \\( -type f -o -type l \\) 2&gt;/dev/null | head -n ${LIST_MAX}
+`;
+
+async function measureRm($, risk, cwd) {
+  if (risk.targets.length === 0) {
+    return { summary: "rm with no paths", lines: [], note: "No paths to expand." };
+  }
+  const run = await $.process.run(["bash", "-c", RM_SCRIPT, "blast-radius", ...risk.targets], { cwd, timeoutMs: 15000 });</code></pre>
+<p>The git checks only read. <code>git clean</code> is dry-run as <code>git clean -n</code> with the same flags, minus <code>-f</code>, <code>-i</code> and <code>-q</code>. <code>git reset --hard</code> and <code>git checkout -- .</code> read <code>git status --porcelain</code> and <code>git diff --shortstat</code>. A force push reads <code>git log</code> for the commits on the remote branch that your side lacks, as of the last fetch. Migrations run the tool's own status command, such as <code>python3 manage.py showmigrations --plan</code>. The folder comes from <code>$.session.cwd()</code>, moved by any <code>cd</code> the classifier saw. The same arguments-not-source rule is used to resolve that folder.</p>
+<div class="note"><strong>Found in review.</strong> The <code>./</code> in front of relative paths was added after an independent review. Without it, a file named like a <code>find</code> action, such as <code>-delete</code>, could be read as that action while measuring. <code>measure</code> never throws: a failed read becomes a note in the pane, and the command is still held.</div>
+
+<h3>4. Show the pane, or the band on a narrow terminal</h3>
+<p>The hook opens a pane with <code>$.ui.open</code>. If the surface does not place it, <code>isPlaced</code> is false, and the mod marks the report for the band above the prompt. Then it asks for a redraw.</p>
+<pre><code>      opened = await $.ui.open({ id: PANE_ID, title: "Blast Radius", focus: true, rows: paneRows(mine.report) });
+      if (!opened.isPlaced) {
+        mine.where = "band";
+      }
+      $.ui.invalidate("ui.render");</code></pre>
+<p>Two <code>ui.render</code> hooks draw the same report with the same <code>draw</code> function. One is for the <code>Pane</code> with id <code>blast-radius</code>. The other is for <code>AbovePrompt</code>, and it only draws when the report is marked for the band:</p>
+<pre><code>  on("ui.render", { component: "AbovePrompt" }, ($, e, next) =&gt; {
+    if (held === null || held.report === null || held.where !== "band") {
+      return next(e);
+    }
+    return draw($.ui.resolve(e), held);
+  });</code></pre>
+<p><code>draw</code> shows the command, the summary in red, up to 10 lines from the list, a note, and the two buttons:</p>
+<pre><code>      Box({
+        key: "buttons",
+        marginTop: 1,
+        gap: 2,
+        children: [
+          Button({ key: "proceed", label: "Proceed", hotkey: "1", plain: true, onPress: decide("proceed") }),
+          Button({ key: "cancel", label: "Cancel", hotkey: "2", plain: true, autoFocus: true, onPress: decide("cancel") }),
+          Text({ key: "hint", dimColor: true, children: "Claude is waiting on your answer" }),
+        ],
+      }),</code></pre>
+<div class="note"><strong>Three small choices in the drawing.</strong> (1) Cancel has <code>autoFocus</code>, so pressing Enter by reflex refuses the command. (2) <code>decide</code> sets the decision on the state the pane was drawn for, and only if it is still <code>null</code>. The comment says the buttons answer that call, "never whichever one is held now". (3) The API types say a pane opened without your asking is placed from 144 columns. The README says to use a terminal about 144 columns wide for the pane.</div>
+
+<h3>5. Refuse with a reason on cancel, timeout or error</h3>
+<p>After the loop, a <code>finally</code> block closes the pane and frees <code>held</code>. Anything unexpected while holding lands in a <code>catch</code> that sets the decision to <code>"error"</code>. Only <code>"proceed"</code> runs the command. Every other outcome returns a <code>deny</code>.</p>
+<pre><code>    if (decision === "proceed") {
+      $.ui.toast("Blast Radius: running it");
+      return next(e);
+    }
+    const why = {
+      cancel: "the user pressed Cancel",
+      timeout: "no answer within 10 minutes",
+      interrupted: "the turn was interrupted",
+      error: "Blast Radius hit an error while holding it",
+    }[decision] ?? "no answer was recorded";
+    return {
+      deny: `Blast Radius held this command and did not run it: ${why}. It would have: ${summary}. Do not retry it unless the user asks you to.`,
+    };</code></pre>
+<p>The API types say the model receives a <code>deny</code> text as an error result. So Claude learns what was refused, why, and what it would have changed. The last sentence asks it not to try again on its own.</p>
+<div class="note"><strong>The pane closes before the hold is freed.</strong> The comment says this order means the next call's pane can't be the one that gets closed.</div>
+
+<div class="note"><strong>Blast Radius and delete-backup.</strong> Blast Radius asks before a delete. Delete-backup keeps a copy, so a delete can be undone with <code>/undo-delete</code>. Both hook <code>tool.call</code> on Bash, so both can run together. They also differ in scope. Blast Radius holds an <code>rm</code> only with a recursive or force flag, and it also covers git and migrations. Delete-backup copies the targets of any <code>rm</code>. Blast Radius keeps no copy: after Proceed, the files are gone.</div>
+
+<h2>How to use it</h2>
+<p>Install Anthropic's sample from a local copy of the mods folder. On this Mac the copy is <code>/Users/igorwaraxe/Downloads/claude-code-playground-mods</code>.</p>
+<pre><code class="language-bash">claude plugin marketplace add &lt;path to the copied mods folder&gt;
+claude plugin install blast-radius@claude-code-playground-mods</code></pre>
+<p>The README adds <code>--scope user</code> to the install line. It removes the mod with <code>claude plugin uninstall blast-radius@claude-code-playground-mods --scope user</code>. To check the plugin, run <code>claude plugin validate ./blast-radius</code> from the mods folder.</p>
+
+<ul class="steps">
+  <li>In a throwaway repo, ask Claude to run something risky. The README's example is "delete the build folder with rm -rf build".</li>
+  <li>Claude's Bash call is held. A pane titled <strong>Blast Radius</strong> shows the command, what it would do (for example, the file count and size), and up to 10 files. On a narrower terminal the same report is in the band above the prompt.</li>
+  <li>Press <code>1</code> for Proceed or <code>2</code> for Cancel. You can also click a button, or Tab to it and press Enter. In the band, <code>1</code> or <code>2</code> works while the input is empty.</li>
+  <li>Proceed shows the toast "Blast Radius: running it", and the command runs as written. Cancel refuses it, and Claude reads the reason.</li>
+  <li>If nobody answers within 10 minutes, or you interrupt the turn with Esc, the command is refused.</li>
+</ul>
+
+<p><strong>Cost.</strong> No model calls and no tokens. Each risky command costs a few read-only commands: <code>bash</code> with <code>find</code> and <code>du</code> for an <code>rm</code>, or <code>git status</code>, <code>git diff</code>, <code>git clean -n</code>, <code>git rev-parse</code> and <code>git log</code> for git. While a call is held, it starts <code>sleep 0.25</code> about four times a second. A very large tree can take a few seconds to measure. For migrations it runs the project's own status command, which loads your project's code before you choose.</p>
+
+<p><strong>Limits, from the README.</strong></p>
+<ul>
+  <li>It does not parse shell fully. <code>$(...)</code>, aliases, <code>eval</code>, <code>bash -c "..."</code>, <code>xargs rm</code>, <code>find -delete</code>, scripts that call <code>rm</code>, and wrappers such as <code>timeout 5 rm</code> or <code>env -i rm</code> are not caught.</li>
+  <li>Only the first risky part of a line is measured. Proceed runs the whole line as written.</li>
+  <li><code>cd -</code>, and a folder that does not exist, can't be measured. The pane says so and still holds the command.</li>
+  <li>The band can be used by only one mod at a time. If another mod takes it, such as Replay Theater or Token Weather, the buttons may not show, and the command is refused after 10 minutes. Use a wider terminal, or turn the other mod off.</li>
+  <li>It only watches the Bash tool. File edits and other tools are not held.</li>
+  <li>The <code>rm</code> count is approximate, and the list shows the first 10 files. The force-push list uses your last fetch, and assumes <code>origin</code> when no remote is named.</li>
+  <li>It holds a call, but it doesn't sandbox it. It is a safety net, not a permission system. Use permission rules for a hard block.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the hold loop run <code>$.process.run(["sleep", "0.25"])</code> instead of <code>$.clock.sleep</code>?</summary>
+  <p>A hook has 10 seconds of its own time per dispatch. The clock stops while a <code>$</code> call is in flight, except for a <code>$.clock</code> wait, which still uses the budget. A sleep in a child process is a <code>$.process.run</code> call, so it is free. That lets the hook wait up to its own 10-minute limit for your answer.</p>
+</details>
+<details class="check">
+  <summary>The pane opens and you press Enter by reflex. What happens, and what does Claude read?</summary>
+  <p>Cancel has <code>autoFocus</code>, so Enter presses Cancel. The decision becomes <code>"cancel"</code>, and the hook returns a <code>deny</code>: "Blast Radius held this command and did not run it: the user pressed Cancel. It would have: …" followed by the summary and "Do not retry it unless the user asks you to." The model receives it as an error result, and nothing is deleted.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="file:///Users/igorwaraxe/Downloads/claude-code-playground-mods/blast-radius/hooks/blast-radius.mjs">The mod's source: hooks/blast-radius.mjs</a></li>
+  <li><a href="file:///Users/igorwaraxe/Downloads/claude-code-playground-mods/blast-radius/README.md">The README, with screenshots and limits</a></li>
+  <li><a href="https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods/blast-radius">Blast Radius on GitHub</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: <code>tool.call</code>, <code>ToolCallResult</code>, <code>HookBudget</code>, <code>process.run</code>, <code>ui.open</code></a></li>
+  <li><a href="0002-delete-backup.html">Lesson 0002: delete-backup</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <span></span>
+  <a href="../index.html">Index</a>
+  <a href="0002-delete-backup.html">0002 Delete backup →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

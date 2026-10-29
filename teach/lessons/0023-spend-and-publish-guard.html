@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0023: Spend and publish guard</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0023 · Spend and publish guard</p>
+<h1>spend-guard</h1>
+<p class="lede">spend-guard puts one approval step in front of anything that costs money or publishes: before the call runs, you see what it will do, a short checklist and today's approval count, and you choose Proceed or Cancel.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt>
+  <dd><code>spend-guard</code> 0.1.0, in the waraxe-claude-mods marketplace</dd>
+  <dt>Folder</dt>
+  <dd><code>plugins/spend-guard</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>on('tool.call', ...)</code>, one hook for every tool call, with a <code>.catch</code> that holds the call if the hook fails</dd>
+  <dt>Calls</dt>
+  <dd><code>$.clock.now()</code>, <code>$.store.get()</code>, <code>$.store.set()</code>, <code>$.ui.ask()</code>, <code>$.process.run()</code>. No model calls.</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.ts</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt>
+  <dd>Igor Waraxe, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>spend-guard</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install spend-guard@waraxe-claude-mods</code> · folder <a href="../../plugins/spend-guard/">plugins/spend-guard</a> · <a href="../../plugins/spend-guard/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>This family stops a costly or public step until you approve it. The two best variants were video only: credit saver (28a) asked before a paid generation, and publish lock (31) showed a checklist before a publish. spend-guard is our own build of both ideas in one hook. It holds publish and deploy commands in Bash (<code>npm publish</code>, <code>docker push</code>, <code>git push</code> to main, and others) and MCP tools whose names say they publish, post, send, charge or generate images and video. It asks once, counts your approvals for the day, and refuses the call on anything but Proceed.</p>
+<p>For <a href="../MISSION.md">your mission</a>, this is the plainest example of a guard: one event, five calls on <code>$</code>, and a refusal you can explain line by line before you publish the marketplace.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>28a + 31</td>
+      <td>spend-guard (shipped)</td>
+      <td>Built here. One Proceed or Cancel question before a paid or publishing call, with a checklist and today's approval count. No balance check.</td>
+      <td><a href="../../plugins/spend-guard/hooks/register.ts">plugins/spend-guard</a></td>
+    </tr>
+    <tr>
+      <td>28a</td>
+      <td>Credit saver</td>
+      <td>Asks for approval before any paid generation, and checks the balance first.</td>
+      <td>Video only: <a href="https://www.youtube.com/watch?v=4Jp0CtfXjz0">video</a> · <a href="../reference/mod-catalogue.html#m28a">catalogue</a></td>
+    </tr>
+    <tr>
+      <td>31</td>
+      <td>Publish lock</td>
+      <td>Shows a checklist before a publish.</td>
+      <td>Video only: <a href="https://www.youtube.com/watch?v=4Jp0CtfXjz0">video</a> · <a href="../reference/mod-catalogue.html#m31">catalogue</a></td>
+    </tr>
+    <tr>
+      <td>28</td>
+      <td>Higgsfield studio (photo studio in the synthesis)</td>
+      <td>Listed under the spend and publish guards. The synthesis gives no more detail.</td>
+      <td>Video only: <a href="https://www.youtube.com/watch?v=LDn7rQKIFro">video</a> · <a href="../reference/mod-catalogue.html#m28">catalogue</a></td>
+    </tr>
+    <tr>
+      <td>30</td>
+      <td>Local model status</td>
+      <td>The synthesis gives no detail beyond the name. FAMILIES.md also lists it under 0042.</td>
+      <td>Video only: <a href="https://www.youtube.com/watch?v=XaYubuLtW8M">video</a> · <a href="../reference/mod-catalogue.html#m30">catalogue</a></td>
+    </tr>
+    <tr>
+      <td>32</td>
+      <td>Jobs radar</td>
+      <td>The workspace gives no detail beyond the name.</td>
+      <td>Video only: <a href="https://www.youtube.com/watch?v=4Jp0CtfXjz0">video</a> · <a href="../reference/mod-catalogue.html#m32">catalogue</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+
+<h3>1. Declare the module and one setting</h3>
+<p><code>hooks/hooks.json</code> names the one hooks module. The manifest declares one <code>userConfig</code> field, so you can add your own patterns without editing code. The engine hands its value to <code>register</code> as <code>options.extraPatterns</code>.</p>
+<pre><code>{ "modules": ["./register.ts"] }</code></pre>
+<pre><code>  "userConfig": {
+    "extraPatterns": {
+      "type": "string",
+      "title": "Your own patterns",
+      "description": "Comma-separated text to hold as well. Each is matched, ignoring case, inside a Bash command and inside every tool name. Example: fly deploy, stripe, mcp__replicate",
+      "default": ""
+    }
+  }</code></pre>
+
+<h3>2. Name what counts as a spend or a publish</h3>
+<p>Bash commands are matched with regular expressions anywhere in the command, so a publish after <code>cd</code> is still caught. MCP tools are matched by whole words in the tool's own name (the part after <code>mcp__server__</code>), so <code>send_message</code> is held and <code>mcp__postgres__query</code> is not.</p>
+<pre><code>// Shell commands that publish or deploy. Each is matched anywhere in a Bash
+// command, so `cd app &amp;&amp; npm publish` is held too.
+const PUBLISH_COMMANDS = [
+  /\b(npm|pnpm|yarn)(\s+npm)?\s+publish\b/,
+  /\btwine\s+upload\b/,
+  /\bdocker\s+(image\s+)?push\b/,
+  /\bgh\s+release\s+create\b/,
+  /\bvercel\b[^;&amp;|\n]*\s--prod\b/,
+]
+
+// A word in an MCP tool's own name that means the call spends or publishes.
+const PAID_TOOL = /(^|_)(publish|deploy|post|send|charge|generate_image|generate_video)(_|$)/</code></pre>
+
+<h3>3. Read your own patterns once, at load</h3>
+<p><code>register</code> receives <code>options</code> with the manifest's defaults filled in. The patterns are split and lowercased once, when the module loads. A change in <code>/config</code> reloads the module, so the list is read again.</p>
+<pre><code>export const register: Register = (on, options) =&gt; {
+  const extra = String(options.extraPatterns ?? '')
+    .toLowerCase()
+    .split(',')
+    .map(p =&gt; p.trim())
+    .filter(p =&gt; p !== '')</code></pre>
+
+<h3>4. Decide, then ask</h3>
+<p>The hook runs for every tool call. A call that is not a spend or a publish goes straight to <code>next(e)</code>, unchanged. For one that is, the hook reads today's count from <code>$.store</code> and asks with <code>$.ui.ask</code>. The question carries the command or tool, the checklist and the count. <code>$.ui.ask</code> rejects when the dialog is dismissed and in a <code>-p</code> run, so the <code>.catch</code> turns both into Cancel.</p>
+<pre><code>  on('tool.call', async ($, e, next) =&gt; {
+    const what = await describeRisk($, e, extra)
+    if (what === undefined) {
+      return next(e)
+    }
+
+    const day = localDay(await $.clock.now())
+    const tally = (await $.store.get('approvals')) as Tally | undefined
+    const count = tally?.day === day ? tally.count : 0
+
+    // A dismissed dialog, or a run with no one to ask, rejects: that counts as Cancel.
+    const choice = await $.ui
+      .ask(
+        [
+          'This call may cost money or publish something.',
+          what,
+          'Check: right account? right file? right destination?',
+          `Approved today: ${count}. Proceed?`,
+        ].join('\n'),
+        { options: ['Proceed', 'Cancel'], header: 'Spend guard' },
+      )
+      .catch(() =&gt; 'Cancel')</code></pre>
+
+<div class="note"><strong>Why the checklist is in the question.</strong> <code>$.ui.ask</code> takes option labels only, so the dialog's options carry no descriptions. Everything you need to check has to be in the question text.</div>
+
+<h3>5. Refuse on anything but Proceed, count on Proceed</h3>
+<p>Cancel, a dismissed dialog, or any other answer returns <code>{ deny }</code>: the tool never runs, and the model reads the text as an error result. Proceed writes the new count and calls <code>next(e)</code>, which runs Claude Code's own permission check and then the tool. The registration's <code>.catch</code> makes the guard fail closed: if the hook throws before <code>next</code>, the call is held, not let through.</p>
+<pre><code>    if (choice !== 'Proceed') {
+      return {
+        deny: `spend-guard held this call: the person did not approve it. Do not retry unless they ask. (${what})`,
+      }
+    }
+
+    const approved: Tally = { day, count: count + 1 }
+    await $.store.set('approvals', approved).catch(() =&gt; undefined)
+
+    return next(e)
+  }).catch(($, e, next) =&gt;
+    // A guard that fails holds the call rather than letting it through.
+    next.called
+      ? next(e)
+      : { deny: 'spend-guard could not check this call, so it held it. Ask the person before you try again.' },
+  )</code></pre>
+
+<div class="note"><strong>Why the store, not state.</strong> <code>$.store</code> is kept across sessions, so the count covers every chat you ran today on this machine. The record holds the day, so the first call after midnight reads a count of 0.</div>
+
+<h3>6. Tell a Bash call from an MCP call</h3>
+<p><code>e.tool === 'Bash'</code> narrows <code>e</code>, so <code>e.command</code> is typed. Any other tool is matched by its name. Your own patterns are tested against both.</p>
+<pre><code>async function describeRisk($: EngineInterface, e: ToolCallInput, extra: string[]): Promise&lt;string | undefined&gt; {
+  if (e.tool === 'Bash') {
+    const command = e.command.toLowerCase()
+    const isHeld =
+      PUBLISH_COMMANDS.some(re =&gt; re.test(command)) ||
+      extra.some(p =&gt; command.includes(p)) ||
+      (await pushesToMain($, e.command))
+
+    return isHeld ? `Bash: ${clip(e.command)}` : undefined
+  }
+
+  const name = e.tool.toLowerCase()
+  const ownName = e.tool.startsWith('mcp__') ? e.tool.split('__').slice(2).join('_') : undefined
+  const isHeld = (ownName !== undefined &amp;&amp; PAID_TOOL.test(words(ownName))) || extra.some(p =&gt; name.includes(p))</code></pre>
+
+<h3>7. Find a push to main, even a bare one</h3>
+<p>A refspec that names <code>main</code> or <code>master</code> is held at once. A bare <code>git push</code>, or one that pushes <code>HEAD</code>, goes wherever the checked-out branch goes, so the hook asks git with <code>$.process.run</code>. A failed or slow git answers <code>''</code>, which is no branch, and the push passes.</p>
+<pre><code>    if (refspecs.length === 0 || targets.includes('HEAD')) {
+      const dir = push[1]?.match(/-C\s+(\S+)/)?.[1]
+      if (MAIN_BRANCHES.includes(await currentBranch($, dir))) {
+        return true
+      }
+    }</code></pre>
+<pre><code>async function currentBranch($: EngineInterface, dir: string | undefined): Promise&lt;string&gt; {
+  const run = await $.process
+    .run(['git', 'branch', '--show-current'], { cwd: dir, timeoutMs: 5000 })
+    .catch(() =&gt; undefined)
+
+  return run?.exitCode === 0 ? run.stdout.trim() : ''
+}</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install spend-guard@waraxe-claude-mods</code></pre>
+<ul class="steps">
+  <li>There is no command. The guard runs on every tool call and asks only for the calls it holds.</li>
+  <li>When the question appears, check the account, the file and the destination, then choose <strong>Proceed</strong> or <strong>Cancel</strong>. Closing the question counts as Cancel.</li>
+  <li>Add your own patterns with <code>/plugin configure spend-guard</code> or <code>/config</code>, for example <code>fly deploy, stripe, mcp__replicate</code>.</li>
+  <li>Cost: no model calls and no tokens. A held call does one store read, an approval one store write, and a bare <code>git push</code> one <code>git branch --show-current</code>.</li>
+</ul>
+
+<h3>Limits</h3>
+<ul class="steps">
+  <li>It matches text. A command that only mentions a pattern, such as a commit message about <code>npm publish</code>, asks too. A publish hidden in a script, such as <code>npm run release</code>, is not seen unless you add a pattern.</li>
+  <li>For a bare <code>git push</code> it reads the branch in the session's folder, or the folder <code>git -C</code> names. After <code>cd other &amp;&amp; git push</code> it still reads the session's folder.</li>
+  <li>An option that takes a separate value, such as <code>git push -o ci.skip origin</code>, can be read as the remote, so that push may pass.</li>
+  <li>There is no balance check. Credit saver checked the balance first, but no API reaches an arbitrary service's balance, so the mod does not pretend to.</li>
+  <li>The count is today's Proceed presses on this machine, across sessions. It counts approvals, not successful runs.</li>
+  <li>A <code>-p</code> run has no one to ask, so every held call is refused there.</li>
+  <li>After Proceed, Claude Code's own permission prompt still appears for a tool you have not already allowed.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>The question is on screen and you press Esc. What happens to the call, and which line makes that so?</summary>
+  <p>The call is refused. <code>$.ui.ask</code> rejects when the dialog is dismissed, <code>.catch(() =&gt; 'Cancel')</code> turns the rejection into <code>'Cancel'</code>, and any answer other than <code>'Proceed'</code> returns <code>{ deny }</code>, so <code>next(e)</code> never runs.</p>
+</details>
+<details class="check">
+  <summary>Claude runs a plain <code>git push</code> while <code>main</code> is checked out. Does spend-guard ask? How does it know the branch?</summary>
+  <p>Yes. The push names no refspec, so <code>refspecs</code> is empty, and the hook runs <code>git branch --show-current</code> through <code>$.process.run</code>. It answers <code>main</code>, which is in <code>MAIN_BRANCHES</code>, so the call is held and the question appears.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li>Main source: <a href="../../plugins/spend-guard/hooks/register.ts">plugins/spend-guard/hooks/register.ts</a></li>
+  <li>API types for <code>tool.call</code>, <code>ToolCallResult</code>, <code>$.ui.ask</code>, <code>AskOptions</code>, <code>$.store</code> and <code>$.process.run</code>: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a>, entries 28a and 31</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0022-park-and-queue.html">← 0022 Park and queue</a>
+  <a href="../index.html">Index</a>
+  <a href="0024-you-should-know.html">0024 You Should Know →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

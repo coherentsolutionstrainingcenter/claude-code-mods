@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0018: Usage display</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+  <style>
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+    th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+    th { font-family: system-ui, -apple-system, sans-serif; color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+
+  <p class="kicker">Lesson 0018 · Usage display</p>
+  <h1>Usage display</h1>
+  <p class="lede">usage-meter puts one line above the prompt: your plan's 5-hour and 7-day usage as small bars, when the 5-hour window resets, and what the session has cost.</p>
+
+  <dl class="meta">
+    <dt>Shipped plugin</dt>
+    <dd>usage-meter 0.1.1, from <a href="https://github.com/hamzafer/claude-code-mods">hamzafer/claude-code-mods</a>, folder <code>mods/usage-meter</code></dd>
+    <dt>Folder</dt>
+    <dd><code>plugins/usage-meter</code></dd>
+    <dt>Hooks</dt>
+    <dd><code>session.start</code>, <code>session.measure</code>, and <code>ui.render</code> with component <code>AbovePrompt</code></dd>
+    <dt>Calls</dt>
+    <dd><code>atom</code>, <code>read</code> and <code>update</code> from <code>'claude-code'</code>; <code>$.session.usage()</code>, <code>$.clock.every()</code>, <code>$.clock.now()</code>, <code>$.ui.toast()</code>, <code>$.ui.resolve()</code>, <code>$.env.get()</code>, <code>$.fs.exists()</code>, <code>$.fs.read()</code></dd>
+    <dt>Files</dt>
+    <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>hooks/bands.ts</code>, <code>types/index.d.ts</code>, <code>tests/usage-meter.test.ts</code>, <code>tsconfig.json</code>, <code>LICENSE</code>. The folder has no README.</dd>
+    <dt>Author and licence</dt>
+    <dd>Hamza Zafar, per <code>plugin.json</code>. MIT, in the folder's <code>LICENSE</code>.</dd>
+  </dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>usage-meter</code> 0.1.1, by Hamza Zafar, MIT · upstream <a href="https://github.com/hamzafer/claude-code-mods">https://github.com/hamzafer/claude-code-mods</a>.<br>Install: <code>claude plugin install usage-meter@waraxe-claude-mods</code> · folder <a href="../../plugins/usage-meter/">plugins/usage-meter</a> · <a href="../../plugins/usage-meter/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+  <h2>What it is</h2>
+  <p>usage-meter draws one line above the prompt. It shows each rate-limit window of your plan as a five-cell bar with a percent, the time until the first window resets, and the session's cost in dollars. The bars turn yellow at 75% and red at 90%, and a toast warns once when a window passes 90%.</p>
+  <p>It serves <a href="../MISSION.md">your mission</a> because it is short and uses only three hook events, so you can point to each one and say why it is there.</p>
+
+  <h2>Variants</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>—</td><td>usage-meter by Hamza Zafar<br><strong>Shipped in this marketplace</strong></td><td>One line above the prompt: the plan's 5-hour and 7-day usage as small bars, the reset countdown and the session's cost.</td><td>MIT: <a href="https://github.com/hamzafer/claude-code-mods">hamzafer/claude-code-mods</a>, folder <code>mods/usage-meter</code>. Here: <code>plugins/usage-meter</code></td></tr>
+      <tr><td>3f</td><td>usage-meter by WeAreNoCode<br><strong>Not shipped: no licence</strong></td><td>One line above the prompt: chat fill, 5-hour and weekly limit use, warm or cold. Holds a message sent to a large, cold chat.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/wearenocode-claude-mods/usage-meter">wearenocode-claude-mods/usage-meter</a></td></tr>
+      <tr><td>3g</td><td>Context Bar</td><td>A stacked bar of the context window above the prompt, one color per category, with token counts and the compaction point.</td><td>Cloned: <a href="https://github.com/hamzafer/claude-code-mods/tree/2e75961/mods/context-bar">hamzafer/claude-code-mods</a>, commit 2e75961</td></tr>
+      <tr><td>3h</td><td>token-weather</td><td>A weather word, fill percent and a block-character chart of the last 12 turns, drawn above the prompt.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/claude-code-playground-mods/token-weather">claude-code-playground-mods/token-weather</a></td></tr>
+      <tr><td>3b</td><td>Minecraft HUD (name only)</td><td>Not confirmed. The synthesis file says it reads an undocumented usage endpoint.</td><td>Video only: <a href="https://www.youtube.com/watch?v=EiThSVZ8pME">video</a> · <a href="../reference/mod-catalogue.html#m3b">catalogue</a></td></tr>
+      <tr><td>3c</td><td>Terminal tracker (name not settled)</td><td>Not confirmed. The synthesis file uses two names for it.</td><td>Video only: <a href="https://www.youtube.com/watch?v=moOBIaIb4a8">video</a> · <a href="../reference/mod-catalogue.html#m3c">catalogue</a></td></tr>
+      <tr><td>3d</td><td>Live breakdown (name only)</td><td>Not confirmed. No source or description on record.</td><td>Video only: <a href="https://www.youtube.com/watch?v=yUuFvL1lK4k">video</a> · <a href="../reference/mod-catalogue.html#m3d">catalogue</a></td></tr>
+      <tr><td>3i</td><td>Token meter (name only)</td><td>Not confirmed. No source or description on record.</td><td>Video only: <a href="https://www.youtube.com/watch?v=WTG3X4r1lA4">video</a> · <a href="../reference/mod-catalogue.html#m3i">catalogue</a></td></tr>
+    </tbody>
+  </table>
+  <p>The video-only names come from MODS-FINAL-SYNTHESIS.md. Nothing else about them is confirmed. The shipped plugin has no ID in FAMILIES.md, so its row shows a dash. It shares its name with 3f, but it is a different mod by a different author.</p>
+
+  <h2>How it was built</h2>
+  <p>The hooks live in <code>hooks/register.tsx</code>. <code>hooks/bands.ts</code> stacks this line with the bands of other mods. The steps follow one reading, from the engine to the drawn line.</p>
+
+  <h3>1. Declare the module</h3>
+  <p><code>hooks/hooks.json</code> names one module. The engine loads it and calls the <code>register</code> function it exports.</p>
+  <pre><code>{ "modules": ["./register.tsx"] }</code></pre>
+
+  <h3>2. Keep the reading in atoms</h3>
+  <p>An atom is a named value with a starting value. <code>snapshot</code> holds the last reading, <code>tick</code> counts clock ticks, and <code>warned</code> remembers which windows already got a toast. The source comment says the host holds them, so they survive a hot reload. <code>types/index.d.ts</code> gives each key its type.</p>
+  <pre><code>// Held by the host, so they survive a hot reload of this file.
+const snapshot = atom({ plugin: 'usage-meter', key: 'snapshot' } as const, null as UsageMeterSnapshot | null)
+const tick = atom({ plugin: 'usage-meter', key: 'tick' } as const, 0)
+const warned = atom({ plugin: 'usage-meter', key: 'warned' } as const, {} as Record&lt;string, number&gt;)</code></pre>
+
+  <h3>3. Take a reading at start and on every measurement</h3>
+  <p><code>session.start</code> starts a timer that bumps <code>tick</code> once a minute, but only while a window has a reset time. It then reads <code>$.session.usage()</code> once, so the line has numbers before the first reply. After that, <code>session.measure</code> brings each new reading. The types say it fires after each main-thread turn, and when a rate-limit window moves a whole point. Both hooks call <code>next(e)</code> first and return its result, so the event goes on unchanged.</p>
+  <pre><code>  on('session.start', async ($, e, next) =&gt; {
+    const result = await next(e)
+    // Moves the reset countdown on while a window has a reset time.
+    timer?.cancel()
+    timer = $.clock.every(TICK_MS, () =&gt; {
+      void (async () =&gt; {
+        const snap = await read($, snapshot)
+        if (snap?.rateLimits.some(w =&gt; w.resetsAt)) await update($, tick, n =&gt; n + 1)
+      })().catch(() =&gt; {})
+    })
+    const usage = await $.session.usage().catch(() =&gt; null)
+    if (usage) await take($, usage.rateLimits, usage.cost?.usd).catch(() =&gt; {})
+    return result
+  })
+
+  on('session.measure', async ($, e, next) =&gt; {
+    const result = await next(e)
+    await take($, e.rateLimits, e.cost?.usd).catch(() =&gt; {})
+    return result
+  })</code></pre>
+
+  <h3>4. Store the windows and warn past 90%</h3>
+  <p><code>take</code> keeps only windows with a real percent, then writes the snapshot. <code>warn</code> shows one toast per window when it reaches 90% (<code>WARN_AT</code>). It stores the window's reset time. A later reading only warns again when the reset time has moved on by more than half an hour, which the comment calls a new period. A window with no reset time re-arms when it drops back under 90%.</p>
+  <pre><code>async function take($: EngineInterface, rateLimits: readonly UsageMeterWindow[], costUsd: number | undefined) {
+  const windows = rateLimits
+    .filter(w =&gt; Number.isFinite(w.percentUsed))
+    .map(w =&gt; ({ kind: w.kind, percentUsed: w.percentUsed, resetsAt: w.resetsAt }))
+  await update($, snapshot, () =&gt; ({ rateLimits: windows, costUsd }))
+  await warn($, windows)
+}
+
+// One toast per window per reset period, once it passes WARN_AT.
+async function warn($: EngineInterface, windows: UsageMeterWindow[]) {
+  const done = await read($, warned)
+  const now = await $.clock.now()
+  const fresh: Record&lt;string, number&gt; = {}
+  const rearm: string[] = []
+  for (const w of windows) {
+    const resetMs = resetTime(w)
+    if (w.percentUsed &lt; WARN_AT) {
+      // With no reset time, dropping back under the line is the only sign of a new period.
+      if (resetMs === 0 &amp;&amp; done[w.kind] !== undefined) rearm.push(w.kind)
+      continue
+    }
+    const last = done[w.kind]
+    // A reset time that moved on by more than half an hour is a new period.
+    if (last !== undefined &amp;&amp; resetMs &lt;= last + 30 * 60_000) continue
+    fresh[w.kind] = resetMs
+    const when = resetMs &gt; 0 ? `, resets in ${countdown(resetMs - now)}` : ''
+    const what = w.kind === 'spend_limit' ? 'Spend limit' : `${label(w.kind)} usage limit`
+    $.ui.toast(`${what} at ${Math.round(w.percentUsed)}%${when}`)
+  }</code></pre>
+
+  <h3>5. Turn the snapshot into parts</h3>
+  <p><code>build</code> drops a window whose reset time has passed, then sorts the rest: 5h, 7d, then spend. Each window becomes a label, a bar and a percent. The first window always says when it resets. The others say so only from 75%. The cost is added last, and only when it is above zero.</p>
+  <pre><code>export function build(snap: UsageMeterSnapshot, now: number): Part[] {
+  const windows = snap.rateLimits
+    .filter(w =&gt; !isStale(w, now)) // a window past its reset waits for a fresh reading
+    .sort((a, b) =&gt; rank(a.kind) - rank(b.kind))
+  const parts: Part[] = windows.map((w, i) =&gt; {
+    const color = colorFor(w.percentUsed)
+    const segments: Segment[] = [
+      { text: `${label(w.kind)} `, dim: true },
+      { text: bar(w.percentUsed), color },
+      { text: ` ${Math.round(w.percentUsed)}%`, color },
+    ]
+    const resetMs = resetTime(w)
+    // The first window always says when it resets; the others only once they run high.
+    if (resetMs &gt; 0 &amp;&amp; (i === 0 || w.percentUsed &gt;= 75)) {
+      segments.push({ text: ` · resets ${countdown(resetMs - now)}`, dim: true })
+    }
+    return { kind: 'window', isPrimary: i === 0, segments }
+  })
+  if (snap.costUsd !== undefined &amp;&amp; snap.costUsd &gt; 0) {
+    parts.push({ kind: 'cost', isPrimary: false, segments: [{ text: `$${snap.costUsd.toFixed(2)} session`, dim: true }] })
+  }
+  return parts
+}</code></pre>
+
+  <h3>6. Drop parts until the line fits</h3>
+  <p><code>fit</code> measures the line in characters. While it is too wide, it removes the last window that is not the first one. If it is still too wide, it removes the cost. So a narrow terminal loses 7d first, then the cost.</p>
+  <pre><code>// Drops the secondary windows first, then the cost, until the line fits.
+export function fit(parts: Part[], columns: number): Part[] {
+  let kept = [...parts]
+  const tooWide = () =&gt; width(kept) &gt; columns
+  while (tooWide()) {
+    const i = findLastIndex(kept, p =&gt; p.kind === 'window' &amp;&amp; !p.isPrimary)
+    if (i &lt; 0) break
+    kept.splice(i, 1)
+  }
+  if (tooWide() &amp;&amp; kept.some(p =&gt; p.isPrimary)) kept = kept.filter(p =&gt; p.kind !== 'cost')
+  return kept
+}</code></pre>
+
+  <h3>7. Draw the line and stack it with other bands</h3>
+  <p>The <code>AbovePrompt</code> hook calls <code>next(e)</code> first, so what other mods and Claude Code draw there is kept in <code>rest</code>. Reading <code>tick</code> makes the line redraw on each tick of the countdown. With a survey open or no reading yet, it returns <code>rest</code> untouched. Otherwise it builds the parts for <code>bodyColumns - 2</code> cells and draws them as one row of <code>Text</code>. <code>stackBands</code> from <code>bands.ts</code> puts the line above the others, unless a band order file says otherwise.</p>
+  <pre><code>  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =&gt; {
+    const rest = await next(e) // what other mods and Claude Code draw here stays
+    await read($, tick) // redraws on each tick of the countdown
+    const snap = await read($, snapshot)
+    if (e.props.hasSurvey || !snap) return rest
+
+    const parts = fit(build(snap, await $.clock.now()), e.props.bodyColumns - 2)
+    if (parts.length === 0) return rest
+
+    const { Box, Text } = $.ui.resolve(e)
+    const segments: Segment[] = [{ text: '⏱ ', dim: true }]
+    parts.forEach((p, i) =&gt; {
+      if (i &gt; 0) segments.push({ text: ' · ', dim: true })
+      segments.push(...p.segments)
+    })
+
+    const mine = (
+      &lt;Box flexDirection="row" paddingX={1}&gt;
+        {segments.map((s, i) =&gt; (
+          &lt;Text key={String(i)} color={s.color} dimColor={s.dim} wrap="truncate"&gt;
+            {s.text}
+          &lt;/Text&gt;
+        ))}
+      &lt;/Box&gt;
+    )
+    bandOrder ??= readBandOrder($).catch(() =&gt; [])
+    return stackBands(rest, 'usage-meter', mine, 'above', await bandOrder) // above what other mods draw, unless the band order says otherwise
+  })</code></pre>
+
+  <h2>How to use it</h2>
+  <pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install usage-meter@waraxe-claude-mods</code></pre>
+  <p>Replace <code>&lt;org&gt;</code> with the GitHub owner of this marketplace. The marketplace README says to run <code>/reload-plugins</code> or start a new session after the install.</p>
+  <p>The plugin folder has no README of its own. The notes below come from the upstream repository's <code>docs/mods.md</code>, checked against the source.</p>
+
+  <ul class="steps">
+    <li>One line appears above the prompt, starting with <code>⏱</code>. For example: <code>5h</code>, a bar, a percent and <code>resets 2h05</code>, then <code>7d</code> with its bar, then <code>$1.24 session</code>.</li>
+    <li>Colors: green under 75%, yellow from 75%, red from 90%. Each time a window passes 90%, one toast says so, with the time to its reset when the window has one.</li>
+    <li>A window past its reset time hides until the next reading.</li>
+    <li>Without a subscription, the line shows only the cost. The types say <code>rateLimits</code> is empty off a subscription.</li>
+    <li>Commands: none. Settings: none. The manifest declares no <code>userConfig</code>.</li>
+    <li>Band order: the line reads <code>claude-code-mods/bands.json</code> under <code>CLAUDE_CONFIG_DIR</code>, or under <code>~/.claude</code>. That file lists band mods from top to bottom. It is read once per session, so restart to apply a change.</li>
+    <li>Cost: no model call. The types say the plain <code>$.session.usage()</code> call costs nothing.</li>
+  </ul>
+
+  <h3>Limits</h3>
+  <ul class="steps">
+    <li>The types say <code>AbovePrompt</code> is raised on the terminal and desktop surfaces only.</li>
+    <li>The line hides while a survey holds the band.</li>
+    <li>The reset countdown moves once a minute (<code>TICK_MS</code> is 60,000 ms).</li>
+    <li>The figures are the ones the engine reports. The mod makes no request of its own.</li>
+  </ul>
+
+  <h2>Check yourself</h2>
+
+  <details class="check">
+    <summary>Why does the <code>AbovePrompt</code> hook call <code>next(e)</code> before it draws anything?</summary>
+    <p><code>rest</code> holds what other mods and Claude Code draw in that slot. The hook returns it unchanged when a survey is open or there is no reading. Otherwise <code>stackBands</code> places this line above <code>rest</code>, so nothing beneath it is lost.</p>
+  </details>
+
+  <details class="check">
+    <summary>The 5h window passed 90% and showed a toast. The next reading says 93%, with the same reset time. Is there a second toast?</summary>
+    <p>No. <code>warned</code> stores the reset time for that window. <code>warn</code> skips a window whose reset time is at most half an hour later than the stored one. A new toast needs a new period: a reset time more than 30 minutes later.</p>
+  </details>
+
+  <h2>Go further</h2>
+  <ul>
+    <li>Main hook file: <a href="../../plugins/usage-meter/hooks/register.tsx">plugins/usage-meter/hooks/register.tsx</a></li>
+    <li>Upstream repository: <a href="https://github.com/hamzafer/claude-code-mods">github.com/hamzafer/claude-code-mods</a>, folder <code>mods/usage-meter</code></li>
+    <li>API types for <code>session.measure</code>, <code>$.session.usage()</code>, <code>AbovePrompt</code> and <code>atom</code>: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a></li>
+    <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+    <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+  </ul>
+
+  <nav class="lesson-nav">
+  <a href="0017-session-monitor.html">← 0017 Session monitor</a>
+  <a href="../index.html">Index</a>
+  <a href="0019-work-panel.html">0019 Work panel →</a>
+</nav>
+
+  <p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

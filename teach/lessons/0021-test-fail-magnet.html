@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0021: test-fail-magnet</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0021 · Mod</p>
+<h1>test-fail-magnet</h1>
+<p class="lede">After Claude runs your tests, it lists the failing lines in a pane, with Fix to send them back to Claude and Dismiss to clear them.</p>
+
+<dl class="meta">
+  <dt>Version</dt><dd>0.1.0</dd>
+  <dt>Folder</dt><dd>/Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/test-fail-magnet</dd>
+  <dt>Marketplace</dt><dd>waraxe-claude-mods</dd>
+  <dt>Hooks</dt><dd><code>tool.call</code> for Bash calls only, and <code>ui.render</code> for the Pane</dd>
+  <dt>Calls</dt><dd><code>next(e)</code>, <code>atom</code>, <code>read</code>, <code>update</code>, <code>$.ui.open</code>, <code>$.ui.resolve</code>, <code>$.prompt.submit</code></dd>
+  <dt>Files</dt><dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>types/index.d.ts</code>, <code>README.md</code></dd>
+  <dt>Author and license</dt><dd>Igor Waraxe, MIT</dd>
+  <dt>Requires</dt><dd>The <code>claude-code</code> plugin API. The folder has no package.json and no npm dependency.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>test-fail-magnet</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install test-fail-magnet@waraxe-claude-mods</code> · folder <a href="../../plugins/test-fail-magnet/">plugins/test-fail-magnet</a> · <a href="../../plugins/test-fail-magnet/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>test-fail-magnet watches the Bash tool that Claude uses. When Claude runs a known test command, the mod reads the printed output and keeps up to ten failing lines in a Failing tests pane. Fix sends those lines to Claude as a prompt, and Dismiss clears them.</p>
+<p>It matters for your mission because <code>MISSION.md</code> asks you to name each mod's hook events and API calls and say why, and this mod uses one hook, one atom and one pane.</p>
+
+<h2>How it was built</h2>
+<p>The whole mod is one file, <code>hooks/register.tsx</code>, 86 lines long. It has four parts, which the steps below take in order.</p>
+
+<h3>1. Recognise a test run by its command</h3>
+<p>The file starts with a table called <code>RUNNERS</code>. Each row has a <code>run</code> pattern, which is matched against the command text, and a <code>lines</code> pattern, which picks the failing lines from the output. The first row whose <code>run</code> pattern matches the command is used.</p>
+<pre><code>// Test runs by command, each with the pattern that finds a failing line in its output.
+const RUNNERS: { run: RegExp; lines: RegExp }[] = [
+  { run: /\b(npm|pnpm|yarn)\s+(run\s+)?test\b|\bnpx\s+(jest|vitest)\b/, lines: /[✕×]|^FAIL / },
+  { run: /\bpytest\b/, lines: /^FAILED / },
+  { run: /\bgo\s+test\b/, lines: /--- FAIL:/ },
+  { run: /\bcargo\s+test\b/, lines: /^test .* \.\.\. FAILED$/ },
+]</code></pre>
+<p>Commands with no matching row, such as <code>swift test</code>, are ignored. Their runs leave the list as it is.</p>
+<div class="note"><strong>Matching is by text, not by meaning.</strong> A command that only mentions a test run also counts. For example, <code>grep "npm test"</code> matches the <code>npm</code> row. The mod never checks the exit status.</div>
+
+<h3>2. Read the output in a tool.call hook</h3>
+<p>The hook is registered for <code>tool.call</code> with the matcher <code>{ tool: 'Bash' }</code>, so it sees only Bash calls. The first argument, <code>$</code>, is the engine handle. <code>next(e)</code> runs the hooks that come after this one, then the engine's own code, which includes the permission prompt and the tool itself. The result comes back as <code>ran</code>, and <code>ran.text</code> holds the output.</p>
+<pre><code>  on('tool.call', { tool: 'Bash' }, async ($, e, next) =&gt; {
+    const lines = RUNNERS.find(runner =&gt; runner.run.test(e.command))?.lines
+    // A background run returns before its output exists, so it must not clear the list.
+    if (lines === undefined || e.run_in_background === true) {
+      return next(e)
+    }
+
+    const ran = await next(e)
+    if (ran.deny !== undefined) {
+      return ran
+    }
+
+    const found = failures(ran.text ?? '', lines)
+    await update($, failing, () =&gt; found)
+    if (found.length &gt; 0) {
+      void $.ui.open({ id: PANE, title: 'Failing tests' })
+    }
+
+    return ran
+  })</code></pre>
+<p>The hook does not decide whether the command runs. It lets the call go through, then reads what came back. If a hook that runs after this one, or the engine itself, refused the call, <code>ran.deny</code> holds the reason. The hook returns that refusal and leaves the list alone.</p>
+<div class="note"><strong>Background runs are skipped.</strong> A background run returns before its output exists. If the hook cleared the list at that point, the last real result would be lost, so the hook returns early.</div>
+<div class="note"><strong>The hook never denies a run.</strong> It only reads the output. The one refusal it handles is one that another hook or the engine has already given, and it passes that on unchanged.</div>
+
+<h3>3. Pick the failing lines in failures()</h3>
+<p>This helper turns the output into the list the pane shows. It returns a <code>Failing</code>, which <code>types/index.d.ts</code> declares as a plain array of strings. The steps run in this order:</p>
+<ul>
+  <li><code>split('\n')</code> cuts the output into lines.</li>
+  <li><code>trim()</code> removes spaces at both ends, so the <code>^</code> patterns in RUNNERS can match indented lines.</li>
+  <li><code>filter</code> keeps the lines that match the runner's <code>lines</code> pattern.</li>
+  <li><code>new Set</code> drops repeats and keeps the first copy of each line.</li>
+  <li><code>slice(0, SHOWN)</code> keeps the first ten. <code>slice(0, LINE_MAX)</code> then cuts each one to 160 characters.</li>
+</ul>
+<pre><code>/** The matching lines, trimmed and cut, without repeats: at most SHOWN of them. */
+function failures(text: string, lines: RegExp): Failing {
+  const hits = text
+    .split('\n')
+    .map(line =&gt; line.trim())
+    .filter(line =&gt; lines.test(line))
+
+  return [...new Set(hits)].slice(0, SHOWN).map(line =&gt; line.slice(0, LINE_MAX))
+}</code></pre>
+<div class="note"><strong>Ten is a hard cap.</strong> The pane shows the first ten unique matches and gives no count of the rest. A run with twelve failures shows ten, and Fix sends only those ten to Claude.</div>
+
+<h3>4. Hold the list in an atom and draw the pane</h3>
+<p>An <code>atom</code> is a named value that the engine keeps for the plugin. Its key is declared in <code>types/index.d.ts</code>, so the key is typed. The starting value is an empty list. A <code>read</code> returns that starting value until something is written, so it is never <code>undefined</code>.</p>
+<pre><code>const failing = atom({ plugin: 'test-fail-magnet', key: 'failing' } as const, [] as Failing)</code></pre>
+<p>The pane is drawn by a <code>ui.render</code> hook for the Pane component whose <code>requestId</code> is the pane's id. <code>$.ui.resolve(e)</code> gives the <code>Box</code>, <code>Button</code> and <code>Text</code> constructors. The <code>read</code> call inside the hook subscribes the pane to the atom. A later <code>update</code> therefore makes the engine draw the pane again.</p>
+<pre><code>  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) =&gt; {
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const list = await read($, failing)
+
+    if (list.length === 0) {
+      return (
+        &lt;Box&gt;
+          &lt;Text dimColor&gt;No failing tests in the last test run.&lt;/Text&gt;
+        &lt;/Box&gt;
+      )
+    }
+
+    return (
+      &lt;Box flexDirection="column"&gt;
+        {list.map((line, i) =&gt; (
+          &lt;Text key={`f${i}`} color="red"&gt;
+            {line}
+          &lt;/Text&gt;
+        ))}</code></pre>
+<p>The buttons come last. Fix builds one prompt from the list and sends it with <code>$.prompt.submit</code>. The engine docs say this becomes a turn of its own, started once the session is idle. Dismiss writes an empty list.</p>
+<pre><code>        &lt;Box&gt;
+          &lt;Button
+            key="fix"
+            label="Fix"
+            onPress={() =&gt;
+              void $.prompt.submit({
+                text: `Fix the failing tests and run them again:\n${list.map(line =&gt; `- ${line}`).join('\n')}`,
+              })
+            }
+          /&gt;
+          &lt;Button key="dismiss" label="Dismiss" onPress={() =&gt; void update($, failing, () =&gt; [])} /&gt;
+        &lt;/Box&gt;
+      &lt;/Box&gt;
+    )
+  })</code></pre>
+<div class="note"><strong>Fix does not clear the list.</strong> The list stays until the next test run or until you press Dismiss. The mod never closes the pane. After Dismiss, the pane shows the empty message.</div>
+
+<h2>How to use it</h2>
+<p>Install the mod from the marketplace, then ask Claude to run your tests.</p>
+<pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+claude plugin install test-fail-magnet@waraxe-claude-mods</code></pre>
+<p>Replace <code>&lt;owner&gt;/&lt;repo&gt;</code> with the GitHub repository that holds the marketplace.</p>
+<div class="warn"><strong>The catalog does not list this mod yet.</strong> <code>/Users/igorwaraxe/Downloads/waraxe-claude-mods/.claude-plugin/marketplace.json</code> has three entries: collision-guard, assumption-check and today-report. Until it has a test-fail-magnet entry, the install line cannot find the mod in that catalog.</div>
+
+<ul class="steps">
+  <li><strong>Ask Claude to run your tests.</strong> The command must match one of the four rows in RUNNERS, and Claude's own Bash tool must run it.</li>
+  <li><strong>Read the pane.</strong> If the output has a matching line, the pane opens with up to ten lines. If nothing matches, the list is cleared and the pane does not open.</li>
+  <li><strong>Press Fix</strong> to send the listed lines to Claude as one prompt, starting with "Fix the failing tests and run them again:".</li>
+  <li><strong>Press Dismiss</strong> to empty the list. The pane stays open and shows that there are no failing tests.</li>
+</ul>
+
+<h3>Cost</h3>
+<p>Detection and the pane make no model calls. The hook reads the output in code. Fix submits one normal prompt, which costs tokens like any message you send.</p>
+
+<h3>Limits</h3>
+<ul>
+  <li><strong>Privacy.</strong> Test output can contain secrets. The pane shows only matching lines, cut to 160 characters, and never raw output. A matching line can still carry a secret, such as an assertion message, and Fix sends those lines to the model.</li>
+  <li><strong>Runners.</strong> Four rows are read: npm, pnpm and yarn test (also run test), npx jest and npx vitest, pytest, go test, and cargo test. Other runners, such as swift test, rspec, mvn test and gradle test, are not recognised.</li>
+  <li><strong>Your own terminal and background runs.</strong> Runs you start in your own terminal are not seen. Background runs are skipped.</li>
+  <li><strong>Width.</strong> The engine docs say a pane the person did not ask for is drawn only from 144 columns. This pane opens from a tool call, so the same rule applies. Below that width it waits, undrawn. The README gives the same figure. The mod ignores the result of its open call, so it logs nothing when this happens.</li>
+  <li><strong>A failing hook.</strong> The engine docs say a hook that throws is skipped, and the run still goes ahead. The mod has no <code>.catch</code>, so the list may not be updated in that case.</li>
+</ul>
+<div class="warn"><strong>The README and the source disagree in two places.</strong> First, the README says the pane opens "when a run fails". The source opens it when the output has at least one matching line. It never reads the exit status or <code>ran.isError</code>, so a run that fails with no matching line clears the list and opens nothing. Second, the README suggests only jest and vitest output is read. The npm, pnpm and yarn row applies the same pattern to any script that <code>npm test</code> runs.</div>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the hook call next(e) before it reads the output?</summary>
+  <p>The output only exists after the Bash call has run. next(e) runs the call and returns its result, and the output is in <code>ran.text</code>. Reading earlier would have nothing to read.</p>
+</details>
+<details class="check">
+  <summary>A test run fails to compile and prints no line that the pattern matches. What happens to the list and the pane?</summary>
+  <p>The command still matches a row, so the hook does not return early. failures() returns an empty array, and <code>update</code> writes it, so the list is cleared. The hook makes no open call, because it opens the pane only when <code>found.length</code> is above zero.</p>
+</details>
+<details class="check">
+  <summary>How does the pane redraw after Dismiss?</summary>
+  <p>The render hook reads the atom with <code>read($, failing)</code>. A read made while a <code>ui.render</code> hook draws subscribes that drawing. When <code>update</code> writes an empty list, the engine draws the pane again, and it shows the empty message.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li>The main source: <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/test-fail-magnet/hooks/register.tsx">hooks/register.tsx</a></li>
+  <li>The engine's API types: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a>. Start with the <code>tool.call</code> event near line 4082, the <code>ui.open</code> docs near line 2520 and the atom functions near line 15641.</li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0020-work-inventory.html">← 0020 Work inventory</a>
+  <a href="../index.html">Index</a>
+  <a href="0022-park-and-queue.html">0022 Park and queue →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

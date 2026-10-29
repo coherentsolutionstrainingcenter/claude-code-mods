@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0022: Park and queue</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0022 · Park and queue</p>
+<h1>Park and queue</h1>
+<p class="lede">Park and queue holds a message you type while Claude is busy, and sends it once the current turn ends, so the running turn is not changed.</p>
+
+<dl class="meta">
+  <dt>Best version</dt>
+  <dd>claude-queue (17a), plugin name <code>prompt-queue</code> 0.4.4. Source: <a href="https://github.com/galElmalah/claude-mods">github.com/galElmalah/claude-mods</a></dd>
+  <dt>Status</dt>
+  <dd>Cloned. <a href="https://github.com/galElmalah/claude-mods/tree/main/claude-queue">Local copy in the scratchpad</a>.</dd>
+  <dt>Variants</dt>
+  <dd>17a (best version, cloned); 17 (idea shelf, video only)</dd>
+  <dt>Files</dt>
+  <dd><code>hooks/register.ts</code> (549 lines, the whole plugin), <code>hooks/hooks.json</code>, <code>.claude-plugin/plugin.json</code>, <code>README.md</code>, <code>tests/e2e/</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code>, <code>turn.start</code>, <code>turn.complete</code>, <code>classic.Stop</code>, <code>tool.call</code>, <code>prompt.submit</code>, <code>command.run</code> (for <code>q</code>), <code>ui.focus</code> and <code>ui.render</code> (both for <code>AbovePrompt</code>)</dd>
+  <dt>Calls</dt>
+  <dd><code>$.command.register</code>, <code>$.command.run</code>, <code>$.prompt.submit</code>, <code>$.prompt.fill</code>, <code>$.clock.after</code>, <code>$.ui.invalidate</code>, <code>$.ui.log</code>, <code>$.ui.focus</code>, <code>$.ui.resolve</code></dd>
+  <dt>Author and license</dt>
+  <dd>Gal Elmalah, MIT</dd>
+  <dt>Requires</dt>
+  <dd>Claude Code 2.1.272 or later, with <code>CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1</code>, in an interactive terminal. Function hooks are early access.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>prompt-queue</code> 0.4.4, by galElmalah, MIT · upstream <a href="https://github.com/galElmalah/claude-mods">https://github.com/galElmalah/claude-mods</a>.<br>Install: <code>claude plugin install prompt-queue@waraxe-claude-mods</code> · folder <a href="../../plugins/prompt-queue/">plugins/prompt-queue</a> · <a href="../../plugins/prompt-queue/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Park and queue catches a message typed while Claude is working. The best version, claude-queue, does this with a <code>/q</code> command and a band above the prompt box that lists the held messages. You can reorder, edit or drop them while the turn runs.</p>
+<p>For your mission, which asks you to name the hook events and calls a mod uses, this mod is a good full read: it uses nine events and nine calls, all in one file.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>17a</td>
+      <td>claude-queue (plugin <code>prompt-queue</code>)</td>
+      <td>Holds messages typed mid-turn in a stack above the prompt, and sends them in order when the turn ends.</td>
+      <td>Cloned from <a href="https://github.com/galElmalah/claude-mods">galElmalah/claude-mods</a>. Local copy in the scratchpad.</td>
+    </tr>
+    <tr>
+      <td>17</td>
+      <td>Idea shelf</td>
+      <td>Parks ideas across sessions. This is a different job from holding messages during one turn.</td>
+      <td>Video only: <a href="https://www.youtube.com/watch?v=ERNqRK6sMJY">video</a> · <a href="../reference/mod-catalogue.html#m17">catalogue</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The plugin is one hooks module, <code>hooks/register.ts</code>, which <code>hooks/hooks.json</code> names as its only module. The steps below follow one message from the moment you type it to the moment it is sent. Each snippet is copied from the file, and the line numbers tell you where it sits.</p>
+
+<h3>1. Register <code>/q</code> as an immediate command (lines 387 to 399)</h3>
+<p>On <code>session.start</code>, the mod registers a command named <code>q</code>. The <code>immediate: true</code> flag lets it run while a turn is going. The source comment says the queue only fills while a turn runs, which is why the flag is set. The <code>.catch</code> logs a failed registration and lets the session continue.</p>
+<pre><code>  on('session.start', async ($, e, next) =&gt; {
+    const r = await next(e)
+    await $.command
+      .register({
+        name: COMMAND,
+        description: 'Hold a prompt until the turn ends: /q &lt;text&gt;; list, up/down/mv, now, rm, edit, clear, send, status (prompt-queue)',
+        argumentHint: '[&lt;text&gt; | up &lt;n&gt; | down &lt;n&gt; | mv &lt;n&gt; &lt;m&gt; | now &lt;n&gt; | rm &lt;n&gt; | edit &lt;n&gt; | clear | send | status]',
+        // the queue is worked on while a turn runs, which is the only time it fills
+        immediate: true,
+      })
+      .catch(err =&gt; $.ui.log(`queue: /${COMMAND} not registered: ${err}`))
+    return r
+  })</code></pre>
+
+<h3>2. Hold the text on a stack (lines 531 to 537)</h3>
+<p>Any text after <code>/q</code> that is not a subcommand, such as <code>up</code>, <code>rm</code> or <code>send</code>, is pushed onto <code>stack</code>. Each entry is an object with an <code>id</code> and its <code>text</code>. If a turn is running, or background work is still going, the entry waits. Otherwise the mod calls <code>send</code>.</p>
+<pre><code>    // anything else is the prompt to hold
+    stack.push({ id: `e${++counter}`, text: e.args.trim() })
+    $.ui.invalidate('ui.render')
+    if (turnId) return { text: `queue: held · ${stack.length} waiting · sent when the turn ends` }
+    if (inFlight &gt; 0) return { text: `queue: held · ${stack.length} waiting · sent when the background work ends` }
+    send($)
+    return { text: `queue: nothing is running · sending${stack.length &gt; 1 ? ` · ${stack.length} waiting` : ''}` }</code></pre>
+
+<h3>3. Drain the stack when the turn ends (lines 409 to 427)</h3>
+<p><code>turn.complete</code> clears the running turn id. Entries still in the <code>steer</code> list go back to the front of the stack. If background work is still running, the drain waits. The count comes from <code>classic.Stop</code> (lines 432 to 435), which reads the engine's <code>background_tasks</code> list. The <code>drainedTurn</code> check allows one drain per turn, even if more than one ending event fires for it.</p>
+<pre><code>  on('turn.complete', async ($, e, next) =&gt; {
+    const r = await next(e)
+    // a subagent's turn ends inside the session's own: not a moment to send
+    if (e.agentId) return r
+    turnId = undefined
+    if (drainedTurn === e.turnId) return r
+    drainedTurn = e.turnId
+    // the turn called no tool after all: what was pushed into it leads the drain
+    if (steer.length &gt; 0) stack.unshift(...steer.splice(0))
+    // a turn that left work running in the background is a pause, not an end:
+    // the notification that wakes it starts the turn whose end drains
+    if (inFlight &gt; 0) {
+      $.ui.invalidate('ui.render')
+      return r
+    }
+    // every ending drains, an Esc included: what was typed was asked for
+    send($)
+    return r
+  })</code></pre>
+
+<h3>4. Wait out the gap, then submit (lines 121 to 141)</h3>
+<p>The engine refuses a plugin's prompt that comes within 5 seconds of the last one. <code>GAP_MS</code> is 5200 milliseconds. When the gap has not passed, <code>flush</code> schedules itself with <code>$.clock.after</code>. Otherwise it takes the next entry, or the stack up to a slash command when the <code>joined</code> option is on. The submit itself is on lines 154 and 155.</p>
+<pre><code>// Synchronous up to the submit itself, so two sends landing together (a
+// turn's end and a press) cannot both take an entry: the second one sees
+// sentAt and waits the gap out. The submit is not awaited: it resolves only
+// once the prompt entered, which is after the hook that asked for it answered.
+const flush = ($: EngineInterface) =&gt; {
+  pending = null
+  if (stack.length === 0) return
+  // a turn started under the timer: nothing is sent into one, and its own end
+  // arms the next drain
+  if (turnId) return
+  const wait = GAP_MS - (Date.now() - sentAt)
+  if (wait &gt; 0) {
+    pending = $.clock.after(wait, () =&gt; flush($))
+    $.ui.invalidate('ui.render')
+    return
+  }
+  const going = takeDue()
+  sentAt = Date.now()
+  if (editing &amp;&amp; indexOfId(editing.id) &lt; 0) editing = null
+  $.ui.invalidate('ui.render')
+  const run = slash(going[0]!.text)</code></pre>
+
+<h3>5. Steer a message into the running turn (lines 437 to 460)</h3>
+<p>The <code>[ ▶ ]</code> button and <code>/q now</code> move an entry into a list called <code>steer</code>. On the next <code>tool.call</code> from the main loop, the hook adds the framed text to the tool result's <code>context</code>. It returns the same object it was given, so the tool's own messages are kept. The user sees only a one-line log from <code>$.ui.log</code>. An entry that would take the result past 32,000 characters (<code>CONTEXT_MAX</code>) stays in <code>steer</code> for later.</p>
+<pre><code>  // The steer route: a mid-turn message rides the next tool result's context,
+  // which is how the engine delivers one. The object `next` gave us goes back
+  // whole, `ref` and all, so the tool's own messages are used verbatim.
+  on('tool.call', async ($, e, next) =&gt; {
+    const r = await next(e)
+    // a subagent's call runs inside the turn but is not it
+    if (steer.length === 0 || e.agentId || r.deny !== undefined) return r
+    const context = [...(r.context ?? [])]
+    let used = context.reduce((n, text) =&gt; n + text.length, 0)
+    const going = steer.splice(0)
+    for (const entry of going) {
+      const framed = frame(entry)
+      if (used + framed.length &gt; CONTEXT_MAX) {
+        steer.push(entry)
+        continue
+      }
+      used += framed.length
+      context.push(framed)
+      $.ui.log(`pushed into the turn · ${fit(firstLine(entry.text), 72)}`)
+    }
+    if (steer.length &gt; 0) $.ui.log(`queue: ${steer.length} too long for a tool result · goes when the turn ends`)
+    $.ui.invalidate('ui.render')
+    return context.length === (r.context?.length ?? 0) ? r : { ...r, context }
+  })</code></pre>
+
+<h3>6. Draw the band and keep a backstop (lines 540 to 548)</h3>
+<p>The <code>ui.render</code> hook for <code>AbovePrompt</code> draws the band through <code>bandOf</code>. The same hook is a backstop. If entries are held, no turn is running, nothing is in flight, and no drain is pending, it schedules a drain with <code>$.clock.after(0, ...)</code>. The band's buttons call <code>$.ui.invalidate('ui.render')</code> so the band redraws after each press.</p>
+<pre><code>  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =&gt; {
+    if (e.surface !== 'terminal' || e.props.hasSurvey || stack.length + steer.length === 0) return next(e)
+    // The backstop: a stack found idle goes out rather than sitting here. By
+    // our own count of the turn alone: `isWorking` reads false while a tool
+    // runs under the fullscreen renderer, so it cannot clear `turnId`. Deferred
+    // past this dispatch, from which a submit would be refused.
+    if (!turnId &amp;&amp; inFlight === 0 &amp;&amp; !e.props.isWorking &amp;&amp; !pending &amp;&amp; failures &lt; RETRIES) pending = $.clock.after(0, () =&gt; flush($))
+    return bandOf($, e)
+  })</code></pre>
+
+<h2>How to use it</h2>
+<p>The README names a marketplace called <code>gal-mods</code>. The clone has no marketplace file, so I could not confirm that name on disk.</p>
+
+<pre><code class="language-bash">claude plugin marketplace add galElmalah/claude-mods
+claude plugin install prompt-queue@gal-mods</code></pre>
+
+<ul class="steps">
+  <li>Turn on function hooks in <code>~/.claude/settings.json</code>: <code>{ "env": { "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1" } }</code>.</li>
+  <li>Ask Claude for something slow. While it works, type <code>/q</code> and your next message, then press Enter.</li>
+  <li>Type <code>/q</code> alone to list what is held. Then use <code>/q up 2</code>, <code>/q rm 1</code>, <code>/q now 1</code> or <code>/q send</code>.</li>
+  <li>In fullscreen (<code>/tui fullscreen</code>), click the band's buttons. On the classic renderer, press ctrl+x tab, then Tab to a button and Enter.</li>
+  <li>Optional: turn on the <code>joined</code> option with <code>/plugin configure prompt-queue</code> to send the whole stack as one prompt.</li>
+</ul>
+
+<p><strong>What it costs.</strong> The code makes no model calls. Each held message that goes out is one ordinary turn, so it costs what that turn costs.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>The engine spaces a plugin's prompts 5 seconds apart. The README says it allows 50 a session.</li>
+  <li>The engine frames a held prompt as sent by the prompt-queue plugin. The text is yours, but the framing is the engine's.</li>
+  <li>Mouse clicks need the fullscreen renderer. Text only: an image goes into the turn as it always did.</li>
+  <li>An Esc does not hold the stack back, so anything typed behind an interrupt goes out.</li>
+  <li>Function hooks are early access, so the API can change between releases. A hot reload of the module empties the stack.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>You type a line without <code>/q</code> while Claude is working. Does the mod hold it?</summary>
+  <p>No. The source leaves Enter to the engine, so the line goes into the running turn as it always did. Only a line that starts with <code>/q</code> is held.</p>
+</details>
+<details class="check">
+  <summary>Why does a held prompt wait 5.2 seconds after the last one?</summary>
+  <p>The engine refuses a plugin prompt that comes within 5 seconds of the previous one. The mod keeps a gap of 5200 milliseconds (<code>GAP_MS</code>) before it submits the next entry.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/galElmalah/claude-mods/blob/main/claude-queue/hooks/register.ts">Main source: hooks/register.ts</a></li>
+  <li><a href="https://github.com/galElmalah/claude-mods/blob/main/claude-queue/README.md">The plugin's README</a></li>
+  <li><a href="https://github.com/galElmalah/claude-mods">The repository on GitHub</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">Engine API types: claude-code.d.ts</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0021-test-fail-magnet.html">← 0021 Test-fail magnet</a>
+  <a href="../index.html">Index</a>
+  <a href="0023-spend-and-publish-guard.html">0023 Spend and publish guard →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

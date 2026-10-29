@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0015: Screen privacy</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+  <style>
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+    th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+    th { font-family: system-ui, -apple-system, sans-serif; color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+
+  <p class="kicker">Lesson 0015 · Screen privacy</p>
+  <h1>recording-mode</h1>
+  <p class="lede">Type <code>/rec</code> before you record. Keys, personal details and business figures are masked on screen, private files stay closed, and a red REC shows while it is on.</p>
+
+  <dl class="meta">
+    <dt>Shipped plugin</dt>
+    <dd><code>recording-mode</code> 1.0.0, variant 7b (Recording Mode). Upstream: <a href="https://github.com/nateherkai/claude-code-mods">github.com/nateherkai/claude-code-mods</a>, folder <code>recording-mode</code></dd>
+    <dt>Folder</dt>
+    <dd><code>plugins/recording-mode</code></dd>
+    <dt>Hooks</dt>
+    <dd><code>session.start</code>, <code>command.run</code> for <code>rec</code> and <code>recording</code>, <code>prompt.submit</code>, <code>tool.call</code>, and <code>ui.render</code> for seven components: <code>UserMessage</code>, <code>AssistantMessage</code>, <code>CommandOutput</code>, <code>ToolUse</code>, <code>ToolResult</code>, <code>AbovePrompt</code> and <code>SessionMode</code></dd>
+    <dt>Calls</dt>
+    <dd><code>$.command.register</code>, <code>$.env.get</code>, <code>$.session.cwd</code>, <code>$.fs.exists</code>, <code>$.fs.read</code>, <code>$.fs.write</code>, <code>$.clock.every</code>, <code>$.clock.now</code>, <code>$.ui.toast</code>, <code>$.ui.invalidate</code>, <code>$.ui.resolve</code></dd>
+    <dt>Files</dt>
+    <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.mjs</code> (278 lines), <code>hooks/privacy.mjs</code> (336 lines), <code>LICENSE</code>. There is no README in the folder; the upstream README has a Recording Mode section.</dd>
+    <dt>Author and licence</dt>
+    <dd>Nate Herk. MIT, in <code>plugin.json</code> and the folder's <code>LICENSE</code>.</dd>
+  </dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>recording-mode</code> 1.0.0, by Nate Herk, MIT · upstream <a href="https://github.com/nateherkai/claude-code-mods">https://github.com/nateherkai/claude-code-mods</a>.<br>Install: <code>claude plugin install recording-mode@waraxe-claude-mods</code> · folder <a href="../../plugins/recording-mode/">plugins/recording-mode</a> · <a href="../../plugins/recording-mode/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+  <h2>What it is</h2>
+  <p>recording-mode adds <code>/rec</code>. While it is on, in every Claude Code session on the machine, it does four things. It masks keys, <code>.env</code> values, emails, names, phone numbers, addresses, ID and account numbers, money and business figures wherever the transcript draws text. It draws results from mail, chat, task, file, calendar and finance tools as hidden. It refuses private files and finance tools. And it adds a note to each prompt asking Claude to keep names and figures out of its replies.</p>
+  <p>It matters for <a href="../MISSION.md">your mission</a> because one short mod uses four kinds of hook, for drawing, refusing, telling the model and a command, and you need to say which one does what before you publish it.</p>
+
+  <h2>Variants</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>7</td><td>screen-share</td><td>Draws emails, phone numbers, money amounts and some names as shaded bars. The manifest says Claude still reads the real data.</td><td>Not shipped: no licence. <a href="../reference/mod-catalogue.html#m7">Catalogue</a>.</td></tr>
+      <tr><td>7a</td><td>Hover-to-reveal emails</td><td>Video only. No public code found.</td><td>Video only: <a href="https://www.youtube.com/watch?v=yUuFvL1lK4k">video</a> · <a href="../reference/mod-catalogue.html#m7a">catalogue</a></td></tr>
+      <tr><td>7b</td><td>Recording Mode, by Nate Herk</td><td><code>/rec</code> masks keys, personal details and business figures on screen, hides whole results from mail, chat, file, calendar and finance tools, and keeps private files closed. <code>/rec off</code> turns it off in every chat.</td><td>Shipped in this marketplace: <code>plugins/recording-mode</code>. MIT, from <a href="https://github.com/nateherkai/claude-code-mods">nateherkai/claude-code-mods</a>. <a href="https://www.youtube.com/watch?v=9hetShMMp2s">Video</a> · <a href="../reference/mod-catalogue.html#m7b">catalogue</a></td></tr>
+    </tbody>
+  </table>
+
+  <h2>How it was built</h2>
+  <p>The hooks are in <code>hooks/register.mjs</code>. The masking rules are pure functions in <code>hooks/privacy.mjs</code>, with no mod API calls.</p>
+
+  <h3>1. Declare the hook module</h3>
+  <p><code>hooks/hooks.json</code> names one module. The engine loads it and calls the <code>register</code> function it exports.</p>
+  <pre><code>{
+  "description": "Recording Mode hooks module",
+  "modules": ["./register.mjs"]
+}</code></pre>
+
+  <h3>2. Share one switch between all chats</h3>
+  <p>The on or off state lives in one file, <code>~/.claude/mods-data/recording.json</code>. <code>setFlag</code> writes it when you run <code>/rec</code>. Turning on loads the <code>.env</code> values and the config, builds the masker, and redraws the transcript with <code>$.ui.invalidate</code>. Turning off drops the values from memory.</p>
+  <pre><code>// Another session may have turned recording on or off
+async function syncFlag($) {
+  const flag = await readFlag($)
+  if (flag.on === rec.on &amp;&amp; flag.strict === rec.strict) return
+  rec = flag
+  if (rec.on) await load($)
+  else unload()
+  apply()
+  $.ui.invalidate('ui.render')
+}
+
+async function setFlag($, on, strict) {
+  rec = { on, strict: on &amp;&amp; strict, since: on ? await $.clock.now() : 0 }
+  await $.fs.write(home + FLAG_PATH, JSON.stringify(rec))
+  if (rec.on) await load($)
+  else unload()
+  apply()
+  $.ui.invalidate('ui.render')
+}</code></pre>
+  <p>Each session reads the file at start, then every 3 seconds, so <code>/rec</code> in one chat reaches the others. <code>/rec</code> is registered with <code>immediate: true</code>, and falls back to <code>/recording</code> if the name is taken.</p>
+  <pre><code>  on('session.start', async ($, e, next) =&gt; {
+    home = (await $.env.get('USERPROFILE')) || (await $.env.get('HOME')) || ''
+    cwd = await $.session.cwd()
+    commandName = (await registerCommand($)) || commandName
+    await loadConfig($)
+    await syncFlag($)
+    $.clock.every(3000, () =&gt; syncFlag($).catch(() =&gt; {}))
+    return next(e)
+  })</code></pre>
+
+  <h3>3. Mask each row as it is drawn</h3>
+  <p>Prompts, replies and command output go through <code>mask</code>. A tool's input is masked with <code>deepMask</code>, which keeps the data's shape. A business tool's output goes through <code>hideText</code> instead, so the whole result draws as hidden. Each hook passes the changed props to <code>next</code>, which draws them.</p>
+  <pre><code>  // Text rows: prompts, replies, command output
+  on('ui.render', { component: ['UserMessage', 'AssistantMessage', 'CommandOutput'] }, async ($, e, next) =&gt; {
+    if (!rec.on || typeof e.props.text !== 'string') return next(e)
+    return next({ ...e, props: { ...e.props, text: mask(e.props.text) } })
+  })
+
+  // Tool rows: the call's input is masked; a business tool's result is hidden whole
+  on('ui.render', { component: 'ToolUse' }, async ($, e, next) =&gt; {
+    if (!rec.on) return next(e)
+    const business = businessSource(e.props.tool, e.props.input, config.businessTools) || businessCalls.has(e.props.tool_use_id)
+    if (business) businessCalls.add(e.props.tool_use_id)
+    const props = { ...e.props, input: deepMask(e.props.input, mask) }
+    if (e.props.output !== undefined) props.output = deepMask(e.props.output, business ? hideText : mask)
+    return next({ ...e, props })
+  })
+
+  on('ui.render', { component: 'ToolResult' }, async ($, e, next) =&gt; {
+    if (!rec.on) return next(e)
+    const business = businessSource(e.props.tool, null, config.businessTools) || businessCalls.has(e.props.tool_use_id)
+    return next({ ...e, props: { ...e.props, output: deepMask(e.props.output, business ? hideText : mask) } })
+  })</code></pre>
+
+  <h3>4. Find what to hide</h3>
+  <p><code>makeMasker</code> returns the <code>mask</code> function. It works in order: <code>.env</code> values and known key shapes first, then people and emails. Names are learned from email addresses, from "Name &lt;email&gt;" pairs and from name fields in JSON, then masked wherever they appear. The text after labels such as From, To and Attendees is masked whole. The rest of the function, not shown, masks cards, ID and account numbers, addresses, phone numbers and public IP addresses, then money and figures near business words.</p>
+  <pre><code>  return function mask(text) {
+    if (typeof text !== 'string' || text.length === 0) return text
+    let out = text
+    if (valueRe) out = out.replace(valueRe, DOTS)
+    for (const re of SECRET_PATTERNS) out = out.replace(re, DOTS)
+    out = out.replace(ASSIGNMENT, (_, name, sep) =&gt; name + sep + DOTS)
+
+    // people, learned before the emails that name them are masked
+    for (const m of out.matchAll(EMAIL)) {
+      const n = namesFromEmail(m[0])
+      if (n) learn(n)
+    }
+    out = out.replace(DISPLAY_NAME, (_, q, name, addr) =&gt; {
+      learn(name)
+      return KEEP_NAMES.has(name) ? q + name + q + addr : HIDE + addr
+    })
+    out = out.replace(PERSON_KEY, (_, head, value, tail) =&gt; {
+      learn(value)
+      return head + (KEEP_NAMES.has(value) ? value : HIDE) + tail
+    })
+    out = out.replace(PERSON_LINE, (line, label, value) =&gt; (KEEP_NAMES.has(value.trim()) ? line : label + HIDE))
+    out = out.replace(EMAIL, '•••@•••')
+    const re = nameRegex()
+    if (re) out = out.replace(re, HIDE)
+</code></pre>
+
+  <h3>5. Keep private files closed</h3>
+  <p>Masking changes only what is drawn. Private files get a <code>tool.call</code> hook instead. It checks the call's path, pattern, command and URL fields against the private path rules, and a finance tool against its own list. A match returns <code>{ deny }</code>, so the tool never runs, and Claude is told to go on without it.</p>
+  <pre><code>  // Private files and finance tools stay closed while recording
+  on('tool.call', async ($, e, next) =&gt; {
+    if (!rec.on) return next(e)
+    const hit = financeTool(e.tool, config.closedTools) ? 'finance tools' : privatePathHit(toolCallTargets(e).join('\n'), config.privatePaths)
+    if (!hit) {
+      if (businessSource(e.tool, e, config.businessTools)) businessCalls.add(e.tool_use_id)
+      return next(e)
+    }
+    blocked += 1
+    return {
+      deny: `Recording mode is on, so "${hit}" stays closed while the screen is being recorded. Continue without it, or ask the user to run /${commandName} off first.`,
+    }
+  })</code></pre>
+
+  <h3>6. Tell Claude</h3>
+  <p>While recording, <code>prompt.submit</code> adds a note to the prompt's <code>context</code>. When recording stops, one more note says the earlier one no longer applies.</p>
+  <pre><code>  // Claude reads a note beside each prompt while recording, and one more when it stops
+  on('prompt.submit', async ($, e, next) =&gt; {
+    const note = rec.on ? noteOn() : noteSent ? NOTE_OFF : null
+    if (!note) return next(e)
+    noteSent = rec.on
+    return next({ ...e, context: [...(e.context ?? []), note] })
+  })</code></pre>
+  <pre><code>function noteOn() {
+  const keep = config.keepNames.length ? ` (other than ${config.keepNames.join(', ')})` : ''
+  return (
+    `Recording mode is on: this screen is being recorded for a public video. In replies and in tool commands, leave out people's names${keep}, emails, phone numbers, addresses, account numbers, dollar amounts, revenue, profit, pricing, compensation, and other business figures, and internal plans, strategy, deals, hiring, and team matters. ` +
+    'Write placeholders like [name], [amount], or [internal plan] instead and keep summaries high level. Private files and finance tools stay closed until recording stops.'
+  )
+}</code></pre>
+
+  <h3>7. Show that it is on</h3>
+  <p>Above the prompt, the mod adds a red <code>● REC</code> on top of what is already drawn there, but not while a survey is open. In the terminal it is bold red text. Where the surface can draw an <code>Svg</code>, it is a small image with a pulsing dot. The footer gets the same label through <code>SessionMode</code>, so it shows even when the band is collapsed.</p>
+  <pre><code>  // Just the indicator: a pulsing red dot and REC
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =&gt; {
+    const below = await next(e)
+    if (e.props &amp;&amp; e.props.hasSurvey) return below
+    if (!rec.on) return below
+    const el = $.ui.resolve(e)
+    const line = e.surface === 'terminal' || !el.Svg
+      ? el.Text({ color: 'red', bold: true, children: ['● REC'] })
+      : el.Svg({ source: REC_SVG, alt: 'REC', width: 54, height: 18 })
+    return el.Box({ flexDirection: 'column', children: below ? [line, below] : [line] })
+  })
+
+  // The footer label shows even when the band is collapsed
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) =&gt; {
+    if (!rec.on) return next(e)
+    const modes = Array.isArray(e.props &amp;&amp; e.props.modes) ? e.props.modes : []
+    return next({ ...e, props: { ...e.props, modes: ['● REC', ...modes] } })
+  })</code></pre>
+
+  <div class="note"><strong>Where the secrets go.</strong> The <code>.env</code> values are read only when recording turns on, and the source comment says they are "kept in memory only, never written anywhere". Turning off clears them.</div>
+
+  <h2>How to use it</h2>
+  <pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install recording-mode@waraxe-claude-mods</code></pre>
+  <p>Replace <code>&lt;org&gt;</code> with the GitHub account that hosts this marketplace. The upstream README asks for Claude Code 2.1.287 or later, with mods turned on for your account. Then open a new chat: a mod loads when a chat starts, and <code>/reload-plugins</code> does not reload it.</p>
+
+  <ul class="steps">
+    <li><code>/rec</code> turns it on, or off if it is on. It applies to every open chat within 3 seconds. A toast says "Recording mode on."</li>
+    <li><code>/rec strict</code> also masks every large figure and percentage, wherever it appears.</li>
+    <li><code>/rec off</code> turns it off everywhere. If it kept any private files closed, the toast says how many.</li>
+    <li><code>/rec config</code> makes <code>~/.claude/mods-data/recording-mode/config.json</code> the first time, with example values. Edit it, save, and run <code>/rec</code> again.</li>
+    <li>If <code>/rec</code> is taken, the command is <code>/recording</code>.</li>
+  </ul>
+
+  <p><strong>Settings.</strong> The config file has five lists:</p>
+  <ul>
+    <li><code>keepNames</code>: your own name and brand, shown even while recording.</li>
+    <li><code>names</code>: people whose names are always masked. Names in emails and contact fields are picked up on their own.</li>
+    <li><code>privatePaths</code>: folders or file names Claude may not open. Any part of a path matches, in any case.</li>
+    <li><code>businessTools</code>: more tool or command names whose results draw as hidden.</li>
+    <li><code>closedTools</code>: more tool names Claude may not call.</li>
+  </ul>
+
+  <p><strong>Cost.</strong> No model calls. While it is on, each prompt carries the short note from step 6. Every 3 seconds, each session reads the flag file. The upstream README says the mods make no network calls of their own.</p>
+
+  <p><strong>Limits.</strong></p>
+  <ul>
+    <li>The README says it changes what is drawn and what Claude may open, not what is stored. Claude still gets the real tool results.</li>
+    <li>The README says pattern masking cannot catch everything written in plain words, so watch your footage before you publish.</li>
+    <li>The README says chat titles in the Desktop app's sidebar cannot be masked by a mod.</li>
+    <li>The hooks mask five components: <code>UserMessage</code>, <code>AssistantMessage</code>, <code>CommandOutput</code>, <code>ToolUse</code> and <code>ToolResult</code>. Text drawn by any other component is not masked.</li>
+    <li><code>.env</code> values come from <code>.env</code> and <code>.env.local</code> in the session's folder and up to three folders above it, read when recording turns on.</li>
+  </ul>
+
+  <h2>Check yourself</h2>
+
+  <details class="check">
+    <summary>Recording is on, and Claude reads a Gmail thread. What does the screen show, and what does Claude get?</summary>
+    <p>The tool name matches the business tool list, so its result is drawn through <code>hideText</code>: any string over 24 characters, or with a space in it, shows as "••• hidden while recording". The hook changes only the props it passes to <code>next</code> in <code>ui.render</code>. The README says Claude still gets the real result.</p>
+  </details>
+
+  <details class="check">
+    <summary>Claude tries to read <code>.env</code> while recording. Why is that a deny and not a mask?</summary>
+    <p>A mask changes only what is drawn, so the file would still be read. The <code>tool.call</code> hook returns <code>{ deny }</code> instead, so the call never runs. It checks the <code>command</code> field too, so <code>cat .env</code> in Bash is refused the same way.</p>
+  </details>
+
+  <h2>Go further</h2>
+  <ul>
+    <li><a href="../../plugins/recording-mode/hooks/register.mjs">The main hook file: plugins/recording-mode/hooks/register.mjs</a>, and the rules in <a href="../../plugins/recording-mode/hooks/privacy.mjs">privacy.mjs</a></li>
+    <li><a href="https://github.com/nateherkai/claude-code-mods">The upstream repository: nateherkai/claude-code-mods</a></li>
+    <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: read <code>ui.render</code>, <code>tool.call</code> and <code>prompt.submit</code></a></li>
+    <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+    <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+  </ul>
+
+  <nav class="lesson-nav">
+  <a href="0014-replay.html">← 0014 Replay</a>
+  <a href="../index.html">Index</a>
+  <a href="0016-collision-guard.html">0016 Collision guard →</a>
+</nav>
+
+  <p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

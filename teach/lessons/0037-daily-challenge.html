@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0037: Daily challenge</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0037 · Family</p>
+<h1>Daily challenge</h1>
+<p class="lede">daily-challenge gives you one small Claude Code exercise each day, in a pane with a Coach me button and a streak.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt><dd>daily-challenge 0.1.0, in the waraxe-claude-mods marketplace</dd>
+  <dt>Folder</dt><dd><code>plugins/daily-challenge</code></dd>
+  <dt>Hooks</dt><dd><code>session.start</code> (registers <code>/challenge</code>), <code>command.run</code> (loads the progress and opens the pane), <code>ui.render</code> on <code>Pane</code> (draws the challenge, the streak and three buttons)</dd>
+  <dt>Calls</dt><dd><code>$.command.register</code>, <code>$.ui.open</code>, <code>$.ui.resolve</code>, <code>$.store.get</code>, <code>$.store.set</code>, <code>$.clock.now</code>, <code>$.prompt.submit</code>, and <code>atom</code>, <code>read</code> and <code>update</code> over <code>$.state</code></dd>
+  <dt>Files</dt><dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>types/index.d.ts</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt><dd>Igor Waraxe, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>daily-challenge</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install daily-challenge@waraxe-claude-mods</code> · folder <a href="../../plugins/daily-challenge/">plugins/daily-challenge</a> · <a href="../../plugins/daily-challenge/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p><code>/challenge</code> opens a pane with today's challenge. The mod picks it by the date from a built-in list of 30 short, practical exercises, such as "Explain a file you have never read" or "Search three folders at once". The pane shows your streak and has three buttons: <strong>Coach me</strong> asks Claude to walk you through the challenge step by step, <strong>Done</strong> marks today complete, and <strong>Skip</strong> moves to tomorrow's challenge. The mod itself makes no model calls.</p>
+<p>Your <a href="../MISSION.md">mission</a> asks you to name the hook events and API calls each mod uses, and this one is a small pane mod that uses a store, a session atom and a prompt call, so you can trace each one from start to end.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>27</td><td>Daily challenge</td><td>One small Claude challenge each day, with a &quot;coach me through it&quot; walkthrough and a streak</td><td>Video only: <a href="https://www.youtube.com/watch?v=aD-h7Bcn5OY">video</a> · <a href="../reference/mod-catalogue.html#m27">catalogue</a></td></tr>
+    <tr><td>27, built here</td><td>daily-challenge (shipped)</td><td><code>/challenge</code> opens a pane with today's challenge from a list of 30, with Coach me, Done and Skip buttons and a streak</td><td><a href="../../plugins/daily-challenge/">plugins/daily-challenge</a>, MIT, written for this marketplace from the video's description</td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The whole mod is one hooks module, <code>hooks/register.tsx</code>. Each snippet below is copied from it, or from its type contract.</p>
+
+<h3>1. Declare the pane's state</h3>
+<p>The pane draws from one value, <code>view</code>: today's date and the progress read with it. A value in <code>$.state</code> must be declared in the mod's contract, <code>types/index.d.ts</code>, which <code>plugin.json</code> names under <code>"types"</code>. <code>claude plugin validate</code> checks every state key the module uses against it.</p>
+<pre><code>declare module 'claude-code' {
+  interface PluginState {
+    'daily-challenge': { view: View }
+  }
+}</code></pre>
+
+<h3>2. Register /challenge when the session starts</h3>
+<p>A slash command exists only after <code>$.command.register</code> declares it, so the <code>session.start</code> hook does that first and then calls <code>next(e)</code> to let the session go on.</p>
+<pre><code>  on('session.start', async ($, e, next) =&gt; {
+    await $.command.register({
+      name: 'challenge',
+      description: "Open today's Claude Code challenge, with a coach and a streak",
+    })
+
+    return next(e)
+  })</code></pre>
+
+<h3>3. Pick today's challenge by the date</h3>
+<p>The date becomes a day number, counted in UTC so that a daylight saving change cannot skip or repeat a day. The day number plus the number of skips, wrapped around the list, gives today's place. That is why Skip moves to tomorrow's challenge: it adds one to the same sum that tomorrow's date would.</p>
+<pre><code>/** Today's place in the list and its challenge: the day number plus the skips, wrapped around. */
+function pick(current: View): [number, Challenge] {
+  const count = CHALLENGES.length
+  const index = (((dayNumber(current.today) + current.progress.shift) % count) + count) % count
+
+  return [index, CHALLENGES[index]!]
+}</code></pre>
+
+<h3>4. Keep the progress in the store</h3>
+<p><code>$.store</code> keeps JSON values between sessions, and every session shares them. So each change reads the store again, applies one edit, writes it back, and only then updates the atom that the pane draws from. Done passes <code>markDone</code> as the edit, and Skip passes <code>skip</code>.</p>
+<pre><code>/**
+ * Reads the progress from the store, applies one change, writes it back, and hands the
+ * pane the result. The store is read each time, so two open sessions do not undo each other.
+ */
+async function change($: EngineInterface, edit: (progress: Progress, today: string) =&gt; Progress): Promise&lt;View&gt; {
+  const today = dayKey(await $.clock.now())
+  const progress = edit(parseProgress(await $.store.get(STORE_KEY)), today)
+  await $.store.set(STORE_KEY, progress)
+  const current = { today, progress }
+  await update($, view, () =&gt; current)
+
+  return current
+}</code></pre>
+
+<h3>5. Draw the three buttons</h3>
+<p>The <code>ui.render</code> hook for the pane takes its elements from <code>$.ui.resolve(e)</code>, so the same tree draws on the terminal, the desktop app, VS Code and mobile. Each Button has its own <code>key</code>, so the surface can find it again after a redraw.</p>
+<pre><code>        &lt;Box gap={1}&gt;
+          &lt;Button key="coach" label="Coach me" variant="primary" onPress={() =&gt; coach($, challenge)} /&gt;
+          &lt;Button key="done" label={isDone ? 'Done ✓' : 'Done'} onPress={() =&gt; change($, markDone)} /&gt;
+          &lt;Button key="skip" label="Skip" onPress={() =&gt; change($, skip)} /&gt;
+        &lt;/Box&gt;</code></pre>
+
+<h3>6. Coach me sends a prompt</h3>
+<p><code>$.prompt.submit</code> queues an ordinary prompt, which starts its own turn once the session is idle. The mod does not call the model itself. The prompt asks for one step at a time and tells Claude to wait for your reply.</p>
+<pre><code>/** Sends a prompt that asks Claude to walk the person through the challenge. */
+function coach($: EngineInterface, challenge: Challenge): void {
+  void $.prompt.submit({
+    text: [
+      "Coach me through today's Claude Code challenge, step by step.",
+      '',
+      `Challenge: ${challenge.title}`,
+      challenge.how,
+      '',
+      'Give me one short step at a time: say exactly what to type or do, and why it helps.',
+      'Use this project for the example. Wait for my reply before you give the next step.',
+      'When I finish, tell me in one line what I practised.',
+    ].join('\n'),
+  })
+}</code></pre>
+
+<h3>7. Count the streak</h3>
+<p>The streak counts the days marked done in a row. While today is still open, it counts back from yesterday, so a streak does not drop to zero in the morning before you have had a chance to do the challenge.</p>
+<pre><code>/** Days done in a row, ending today, or ending yesterday while today is still open. */
+function streakOf(doneDays: readonly string[], today: string): number {
+  const done = new Set(doneDays)
+  let day = done.has(today) ? dayNumber(today) : dayNumber(today) - 1
+  let streak = 0
+  while (done.has(dayKeyOf(day))) {
+    streak += 1
+    day -= 1
+  }
+
+  return streak
+}</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install daily-challenge@waraxe-claude-mods</code></pre>
+<ul class="steps">
+  <li>Run <code>/challenge</code>. The pane opens, and the transcript shows the title of today's challenge.</li>
+  <li>Press <strong>Coach me</strong> for a step-by-step walkthrough, <strong>Done</strong> when you have finished, or <strong>Skip</strong> for the next challenge in the list.</li>
+  <li>There are no settings. The skips and the done days are kept in the plugin store under the key <code>progress</code>.</li>
+</ul>
+<p><strong>What it costs.</strong> The mod makes no model calls. Coach me sends one ordinary prompt, so it costs one normal turn, the same as typing the prompt yourself. Done and Skip write a small JSON value to the plugin store.</p>
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>A day is your computer's local calendar day. An open pane does not roll over at midnight by itself: run <code>/challenge</code> again or press a button.</li>
+  <li>Skip moves the whole list on by one. It does not count as done, and it does not break the streak.</li>
+  <li>Nothing checks that you did the challenge. Done is your own word.</li>
+  <li>The 30 challenges are fixed in the <code>CHALLENGES</code> list in <code>hooks/register.tsx</code>.</li>
+  <li>The progress lives in the plugin store on this machine only.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does each press read <code>$.store</code> again, instead of using the <code>view</code> atom it already holds?</summary>
+  <p>The atom belongs to one session, but the store is shared by every session on the machine. If you press Done in one session and Skip in another, each change reads the latest progress from the store first, so neither undoes the other.</p>
+</details>
+<details class="check">
+  <summary>The mod makes no model calls. Why does Coach me still cost tokens?</summary>
+  <p>Coach me calls <code>$.prompt.submit</code>, which queues an ordinary prompt. That prompt starts a normal turn, and the model answers it as if you had typed it.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="../../plugins/daily-challenge/hooks/register.tsx">The source: plugins/daily-challenge/hooks/register.tsx</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">Engine API types: claude-code.d.ts</a> (grep it for <code>prompt: {</code> and <code>store: {</code>)</li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0036-design-picker.html">← 0036 Design picker</a>
+  <a href="../index.html">Index</a>
+  <a href="0038-model-router.html">0038 Model router →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

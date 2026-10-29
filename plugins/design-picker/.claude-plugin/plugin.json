@@ -1,0 +1,9 @@
+{
+  "name": "design-picker",
+  "version": "0.1.0",
+  "description": "When Claude asks you to choose a design style, opens a page in your browser that shows each option as a styled card, then shows the normal question",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0041: Cosmetic and entertainment</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0041 · Family</p>
+<h1>Cosmetic and entertainment</h1>
+<p class="lede">terminal-pet puts a small text pet in the band above the prompt, and the pet "eats" the files Claude reads.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt><dd>terminal-pet 0.1.0, in the waraxe-claude-mods marketplace</dd>
+  <dt>Folder</dt><dd><code>plugins/terminal-pet</code></dd>
+  <dt>Hooks</dt><dd><code>session.start</code> (registers <code>/pet</code>, loads the settings, starts the clock), <code>tool.call</code> on Read (counts the meals), <code>turn.complete</code> (notes activity), <code>command.run</code> (answers <code>/pet</code>), <code>ui.render</code> on <code>AbovePrompt</code> (draws the pet)</dd>
+  <dt>Calls</dt><dd><code>$.command.register</code>, <code>$.clock.every</code>, <code>$.clock.now</code>, <code>$.store.get</code>, <code>$.store.set</code>, <code>$.ui.resolve</code>, and <code>atom</code>, <code>read</code> and <code>update</code> over <code>$.state</code></dd>
+  <dt>Files</dt><dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>types/index.d.ts</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt><dd>Igor Waraxe, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>terminal-pet</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install terminal-pet@waraxe-claude-mods</code> · folder <a href="../../plugins/terminal-pet/">plugins/terminal-pet</a> · <a href="../../plugins/terminal-pet/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Each file Claude reads with the Read tool in this session is one meal. The pet has four moods, each with two frames drawn in plain characters on one line: <strong>eating</strong> <code>(^O^)</code> for a few seconds after each read, <strong>hungry</strong> <code>(°o°)</code> until it has eaten 8 files, <strong>full</strong> <code>(^_^)</code> after that, and <strong>sleepy</strong> <code>(-_-) zZ</code> after 10 idle minutes. Beside the face it says what it is doing, such as <code>Pip is eating register.ts · 3 files eaten</code>. <code>/pet off</code>, <code>/pet on</code> and <code>/pet name &lt;name&gt;</code> control it. It is a toy and makes no model calls.</p>
+<p>Your <a href="../MISSION.md">mission</a> asks you to point to the hook events and API calls each mod uses, and this small mod puts five events in one short file: a tool hook, a turn hook, a command, a timer and the band above the prompt.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>14a</td><td>Pokémon (best)</td><td>A pixel Pokémon in the band above the prompt. It reacts to Claude's work and can catch wild Pokémon.</td><td><a href="https://github.com/dgokcin/claude-pokemon-mod">GitHub</a>, cloned · not shipped: no licence</td></tr>
+    <tr><td>14b</td><td>Idle Art</td><td>No description on disk. Named in FAMILIES.md only.</td><td>Video only: <a href="https://www.youtube.com/watch?v=WTG3X4r1lA4">video</a> · <a href="../reference/mod-catalogue.html#m14b">catalogue</a></td></tr>
+    <tr><td>14c</td><td>Terminal pet (named "pet" in the synthesis)</td><td>No description on disk. Named in FAMILIES.md and the synthesis only.</td><td>Video only: <a href="https://www.youtube.com/watch?v=uvIopT_2sY0">video</a> · <a href="../reference/mod-catalogue.html#m14c">catalogue</a></td></tr>
+    <tr><td>14c, built here</td><td>terminal-pet (shipped)</td><td>A one-line text pet in the band above the prompt that eats the files Claude reads, with four moods and <code>/pet on</code>, <code>/pet off</code> and <code>/pet name</code></td><td><a href="../../plugins/terminal-pet/">plugins/terminal-pet</a>, MIT, written for this marketplace</td></tr>
+  </tbody>
+</table>
+<div class="note"><strong>Video-only rows.</strong>
+<p>The review notes give no description for 14b or 14c. They grade all three entries at 1, and the synthesis does not explain them further.</p></div>
+<div class="warn"><strong>Pokémon is not shipped.</strong> The Pokémon mod (14a) has no LICENSE file, and its sprites are third-party artwork, so this marketplace does not ship it or copy its code. terminal-pet was written from scratch for the same idea: a creature above the prompt that reacts to Claude's work.</div>
+
+<h2>How it was built</h2>
+<p>The whole mod is one hooks module, <code>hooks/register.tsx</code>. Each snippet below is copied from it.</p>
+
+<h3>1. Count the meals with a hook on Read</h3>
+<p>A <code>tool.call</code> hook with the matcher <code>{ tool: 'Read' }</code> runs around every Read. It calls <code>next(e)</code> first, so the read runs unchanged, and counts a meal only when the result is neither a deny nor an error. The <code>.catch</code> handler replays the read's result if the counting itself fails, so a broken pet can never break a read.</p>
+<pre><code>  // Each Read that succeeds is one meal. The count is per session.
+  on('tool.call', { tool: 'Read' }, async ($, e, next) =&gt; {
+    const ran = await next(e)
+    if (ran.deny === undefined &amp;&amp; ran.isError !== true) {
+      const now = await $.clock.now()
+      const file = e.file_path.split(/[\\/]/).pop() || e.file_path
+      await update($, pet, p =&gt; ({ meals: p.meals + 1, lastMealAt: now, lastFile: file, lastActiveAt: now }))
+    }
+
+    return ran
+  }).catch(($, e, next) =&gt; next(e))</code></pre>
+
+<h3>2. Work out the mood</h3>
+<p>The mood depends on the meal count and on time: how long since the last meal, and how long since anything happened. <code>isWorking</code> comes from the band's own props, so the pet stays awake while Claude runs a long turn without reading anything.</p>
+<pre><code>/** Eating right after a meal; sleepy when idle; full after enough meals; hungry otherwise. */
+function moodOf(state: Pet, now: number, isWorking: boolean): Mood {
+  if (now - state.lastMealAt &lt; EAT_MS) {
+    return 'eating'
+  }
+  if (!isWorking &amp;&amp; now - state.lastActiveAt &gt;= SLEEP_MS) {
+    return 'sleepy'
+  }
+  if (state.meals &gt;= FULL_AT &amp;&amp; now - state.lastMealAt &lt; DIGEST_MS) {
+    return 'full'
+  }
+
+  return 'hungry'
+}</code></pre>
+
+<h3>3. Give each mood two frames</h3>
+<p>The frames are plain characters, one cell each, so they line up the same way in every terminal. The colors are theme keys, so they follow the person's light or dark theme.</p>
+<pre><code>// Two frames per mood, swapped on each beat. Plain characters, one cell each.
+const FRAMES: Record&lt;Mood, [string, string]&gt; = {
+  hungry: ['(°o°)', '(°O°)'],
+  eating: ['(^O^)', '(^-^)'],
+  full: ['(^_^)', '(-_^)'],
+  sleepy: ['(-_-) z', '(-_-) zZ'],
+}
+// Theme keys, so the colors follow the person's theme.
+const COLORS: Record&lt;Mood, string&gt; = { hungry: 'warning', eating: 'success', full: 'claude', sleepy: 'inactive' }</code></pre>
+
+<h3>4. Move the frames with a clock</h3>
+<p><code>session.start</code> starts <code>$.clock.every(1000, ...)</code>. Each tick works out a "beat", a number that changes every second while the pet eats and every 3 seconds otherwise, and writes it to a <code>$.state</code> atom only when it changed. Each write redraws the band, which picks the frame from the beat and works out the mood again, so the pet falls asleep on time with no extra timer.</p>
+<pre><code>/** Runs each second. It writes the beat only when it changes, and each write redraws the band. */
+async function tick($: EngineInterface): Promise&lt;void&gt; {
+  if (!(await read($, settings)).isOn) {
+    return
+  }
+
+  const value = beatAt(await read($, pet), await $.clock.now())
+  if (value !== lastBeat) {
+    lastBeat = value
+    await update($, beat, () =&gt; value)
+  }
+}</code></pre>
+
+<h3>5. Draw the band above the prompt</h3>
+<p>A <code>ui.render</code> hook on <code>AbovePrompt</code> returns one row: the face in its mood's color, then the caption, cut to fit. When the pet is off, or a survey holds the band, it returns <code>next(e)</code> and draws nothing of its own.</p>
+<pre><code>  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =&gt; {
+    const prefs = await read($, settings)
+    if (!prefs.isOn || e.props.hasSurvey) {
+      return next(e)
+    }
+
+    const state = await read($, pet)
+    const frame = (await read($, beat)) % 2 === 0 ? 0 : 1
+    const mood = moodOf(state, await $.clock.now(), e.props.isWorking)
+    const { Box, Text } = $.ui.resolve(e)
+
+    return (
+      &lt;Box&gt;
+        &lt;Text color={COLORS[mood]}&gt;{FRAMES[mood][frame].padEnd(10)}&lt;/Text&gt;
+        &lt;Text dimColor wrap="truncate"&gt;
+          {caption(mood, prefs.name, state)}
+        &lt;/Text&gt;
+      &lt;/Box&gt;
+    )
+  })</code></pre>
+
+<h3>6. Keep the name and the setting in the store</h3>
+<p>The meal count lives in <code>$.state</code>, which lasts for the session. The name and the on/off setting must outlast it, so <code>save</code> writes them to <code>$.store</code> as well, and <code>loadSettings</code> reads them back at the next session's start.</p>
+<pre><code>async function loadSettings($: EngineInterface): Promise&lt;PetSettings&gt; {
+  const isOn = await $.store.get('isOn')
+  const stored = await $.store.get('name')
+  const name = typeof stored === 'string' ? cleanName(stored) : ''
+
+  return { isOn: isOn !== false, name: name || DEFAULT_NAME }
+}
+
+async function save($: EngineInterface, value: PetSettings): Promise&lt;void&gt; {
+  await $.store.set('isOn', value.isOn)
+  await $.store.set('name', value.name)
+  await update($, settings, () =&gt; value)
+}</code></pre>
+
+<h3>7. Answer /pet</h3>
+<p>The <code>command.run</code> hook splits the arguments into a first word and the rest. <code>on</code> and <code>off</code> flip the setting, and <code>name</code> takes the rest as the new name, with control characters removed and cut to 20 characters.</p>
+<pre><code>  on('command.run', { command: 'pet' }, async ($, e) =&gt; {
+    const [word = '', ...rest] = e.args.trim().split(/\s+/)
+    const current = await read($, settings)
+
+    if (word === 'on' || word === 'off') {
+      await save($, { ...current, isOn: word === 'on' })
+      return { text: word === 'on' ? `${current.name} is back above the prompt.` : `${current.name} is hidden. /pet on brings it back.` }
+    }
+    if (word === 'name') {
+      const name = cleanName(rest.join(' '))
+      if (name === '') {
+        return { text: `Usage: /pet name &lt;name&gt;, up to ${MAX_NAME} characters.` }
+      }
+      await save($, { ...current, name })
+      return { text: `Your pet is now called ${name}.` }
+    }</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install terminal-pet@waraxe-claude-mods</code></pre>
+<ul class="steps">
+  <li>The pet is on by default. Ask Claude to read a file and watch it eat.</li>
+  <li><code>/pet off</code> hides it and <code>/pet on</code> brings it back.</li>
+  <li><code>/pet name &lt;name&gt;</code> renames it; the default name is Pip. <code>/pet</code> on its own says how many files it has eaten this session.</li>
+</ul>
+<p><strong>What it costs.</strong> No model calls. A one-second timer runs while the pet is on, and the band redraws once a second while the pet eats and once every 3 seconds otherwise. The name and the setting are two small values in the plugin store.</p>
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>The band above the prompt exists only in the terminal and the desktop app, so the pet does not show in VS Code or on mobile.</li>
+  <li>Only the Read tool counts. Files Claude sees through Grep, Bash or an @-mention are not meals. Reads by subagents do count, and a failed or denied read does not.</li>
+  <li>The meal count starts at 0 in each session.</li>
+  <li>If another mod also draws the band above the prompt, only one of them shows.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the Read hook call <code>next(e)</code> before it counts, and not after?</summary>
+  <p>It needs the result. <code>next(e)</code> runs the read and resolves with what happened, so the hook can skip a read that was denied or failed. Calling it first also means the hook never changes or delays the read itself.</p>
+</details>
+<details class="check">
+  <summary>Why is the meal count kept in <code>$.state</code>, but the name in <code>$.store</code>?</summary>
+  <p><code>$.state</code> lasts for the session and survives a hot reload, which suits a count that should start at 0 in each session. <code>$.store</code> is a file the plugin keeps between sessions, which suits a name and a setting you chose once.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="../../plugins/terminal-pet/hooks/register.tsx">The source: plugins/terminal-pet/hooks/register.tsx</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">Engine API types: claude-code.d.ts</a> (grep it for <code>AbovePrompt: {</code> and <code>export type ToolCallResult</code>)</li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0040-time-lapse.html">← 0040 Time-lapse</a>
+  <a href="../index.html">Index</a>
+  <a href="0042-games-and-waiting.html">0042 Games and waiting →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

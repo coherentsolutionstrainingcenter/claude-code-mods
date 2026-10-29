@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0040: time-lapse</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0040 · Mod</p>
+<h1>time-lapse</h1>
+<p class="lede">time-lapse records your Claude Code session and replays it as an animated HTML page: the original idea was a video, but this build makes an HTML replay instead.</p>
+
+<dl class="meta">
+  <dt>Version</dt><dd>0.1.0</dd>
+  <dt>Folder</dt><dd>/Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/time-lapse</dd>
+  <dt>Marketplace</dt><dd>waraxe-claude-mods</dd>
+  <dt>Hooks</dt><dd><code>session.start</code>, <code>prompt.submit</code>, <code>tool.call</code>, <code>turn.complete</code>, and <code>command.run</code> for <code>time-lapse</code></dd>
+  <dt>Calls</dt><dd><code>$.command.register</code>, <code>$.session.id</code>, <code>$.clock.now</code>, <code>$.fs.read</code>, <code>$.fs.write</code>, <code>$.fs.exists</code>, <code>$.env.get</code>, <code>$.process.run</code></dd>
+  <dt>Files</dt><dd>Writes <code>~/.claude/time-lapse/&lt;session id&gt;.json</code> (the log) and <code>~/.claude/time-lapse/&lt;session id&gt;.html</code> (the replay)</dd>
+  <dt>Author and license</dt><dd>Igor Waraxe, MIT</dd>
+  <dt>Requires</dt><dd>macOS for <code>open</code>; nothing else</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>time-lapse</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install time-lapse@waraxe-claude-mods</code> · folder <a href="../../plugins/time-lapse/">plugins/time-lapse</a> · <a href="../../plugins/time-lapse/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>time-lapse watches a Claude Code session as it runs and logs each prompt, each tool call and each finished turn. When you run <code>/time-lapse</code>, it turns that log into an animated page you can play and pause in a browser. The whole mod is one TypeScript file, <code>hooks/register.ts</code>, and it makes no model calls.</p>
+<p>It matters for your mission in <code>MISSION.md</code>, which asks you to name the hook events and API calls a mod uses and say why, and this one uses five hooks and eight calls in one file.</p>
+
+<h2>How it was built</h2>
+<p>The code has four parts. The steps follow the path of the data: events go in, a log is kept, the log is cut into turns, and a page is drawn.</p>
+
+<h3>1. Record events through hooks</h3>
+<p>The mod registers its hooks with <code>on(...)</code>. The <code>session.start</code> hook registers the <code>/time-lapse</code> command. Three other hooks record events, and each keeps only what it needs:</p>
+<ul>
+  <li><code>prompt.submit</code> keeps the prompt's length. It never keeps the text.</li>
+  <li><code>tool.call</code> keeps the tool's name. Its arguments are not read.</li>
+  <li><code>turn.complete</code> keeps the names of the tools used since the main loop last closed a turn, and the turn's duration in milliseconds.</li>
+</ul>
+<p>Each event also gets an <code>at</code> time from <code>$.clock.now()</code>. Every hook ends with <code>return next(e)</code>, which passes the event on.</p>
+<pre><code>  on('prompt.submit', async ($, e, next) =&gt; {
+    void record($, { at: await $.clock.now(), kind: 'prompt', length: e.text.length })
+
+    return next(e)
+  })
+
+  on('tool.call', async ($, e, next) =&gt; {
+    tools.push(e.tool)
+    void record($, { at: await $.clock.now(), kind: 'tool', tool: e.tool })
+
+    return next(e)
+  })
+
+  on('turn.complete', async ($, e, next) =&gt; {
+    // A subagent's turn ends inside the main turn that spawned it, so only the main loop closes one.
+    if (e.agentId === undefined) {
+      const used = tools
+      tools = []
+      void record($, { at: await $.clock.now(), kind: 'turn', tools: used, durationMs: e.durationMs })
+    }
+
+    return next(e)
+  })</code></pre>
+
+<div class="warn"><strong>README and source differ on prompt length.</strong> The README says the log keeps the length in characters. The code uses <code>e.text.length</code>, and JavaScript counts that in UTF-16 code units. For plain text the two match. An emoji, or any character outside the Basic Multilingual Plane, counts as 2.</div>
+
+<div class="note"><strong>Why <code>record()</code> is not awaited.</strong> The hook returns without waiting for the file write. The source gives no reason in a comment. The likely reason is that a hook should not wait on disk for every prompt. <code>void</code> marks the promise as ignored on purpose. That is safe, because <code>record()</code> ends with a <code>catch</code>, so the promise never rejects.</div>
+
+<h3>2. Keep one log file per session</h3>
+<p>Each session has one file, <code>~/.claude/time-lapse/&lt;session id&gt;.json</code>, which holds one JSON array. An append reads the whole array, adds one event, and writes the whole array back. The engine's <code>$.fs.write</code> creates the folder if it is missing.</p>
+<pre><code>/** Adds one event to this session's log. A failed write drops that event and nothing else. */
+function record($: EngineInterface, event: TimeEvent): Promise&lt;void&gt; {
+  queue = queue
+    .then(async () =&gt; {
+      const id = await $.session.id()
+      const events = await readLog($, id)
+      events.push(event)
+      await $.fs.write(await sessionFile($, id, 'json'), JSON.stringify(events))
+    })
+    .catch(() =&gt; {})
+
+  return queue
+}</code></pre>
+
+<div class="note"><strong>Why a queue.</strong> Each append reads, then writes. Two appends that started together would both read the same array, and the second write would drop the first event. The <code>queue</code> variable runs each append after the one before it. Each append ends with a <code>catch</code>, so a failed write drops only its own event, and the queue carries on. A file that will not parse is not overwritten: <code>readLog</code> throws, the append fails, and the file stays as it was.</div>
+
+<h3>3. Split the log into turns</h3>
+<p><code>groupTurns</code> closes a turn at each <code>turn</code> event. Events after the last one form an unfinished turn, and the page still shows it. <code>slotOf</code> gives each turn a playback slot: its real duration, kept between 400 ms and 2 s. An unfinished turn gets the full 2 s. The README says a turn plays in at most two seconds. It does not mention the 400 ms floor, which keeps a quick turn visible.</p>
+<pre><code>/** Splits the log into turns, each ending at its turn event. */
+function groupTurns(events: TimeEvent[]): Turn[] {
+  const turns: Turn[] = []
+  let current: TimeEvent[] = []
+  for (const event of events) {
+    current.push(event)
+    if (event.kind === 'turn') {
+      turns.push({ events: current, durationMs: event.durationMs })
+      current = []
+    }
+  }
+  if (current.length &gt; 0) {
+    turns.push({ events: current })
+  }
+
+  return turns
+}
+
+/** How long a turn plays: its real length, kept between the floor and the cap. */
+function slotOf(turn: Turn): number {
+  if (turn.durationMs === undefined) {
+    return MAX_TURN_MS
+  }
+
+  return Math.min(MAX_TURN_MS, Math.max(MIN_TURN_MS, turn.durationMs))
+}</code></pre>
+
+<div class="note"><strong>Why a subagent's turn does not close the main turn.</strong> <code>turn.complete</code> also fires for subagents. The API types say <code>agentId</code> is absent on the main loop, so a subagent's end carries one. A subagent's turn runs inside the main turn that started it. If it closed the main turn, that turn would end early and split in two. The check <code>e.agentId === undefined</code> lets only the main loop close a turn. A subagent's tool calls still count toward the main turn, because the <code>tool.call</code> hook does not check <code>agentId</code>.</div>
+
+<h3>4. Render one self-contained HTML page</h3>
+<p><code>renderPage</code> builds one <code>section</code> per turn. Each event inside a turn becomes a chip, and the chips are spaced evenly across that turn's slot. Each section and chip gets an <code>animation-delay</code> inline, and the CSS fades it in when that delay ends.</p>
+<pre><code>function renderPage(id: string, events: TimeEvent[]): string {
+  const turns = groupTurns(events)
+  let clock = 0
+  const sections = turns.map((turn, n) =&gt; {
+    const start = clock
+    const step = slotOf(turn) / turn.events.length
+    clock += slotOf(turn)
+
+    const chips = turn.events.map((event, i) =&gt; chip(event, start + i * step)).join('')
+    const calls = turn.events.filter(event =&gt; event.kind === 'tool').length
+    const title = turn.durationMs === undefined ? 'Unfinished turn' : `Turn ${n + 1}`
+
+    return `&lt;section class="turn" style="animation-delay:${Math.round(start)}ms"&gt;&lt;h2&gt;${title} · ${calls} tool ${calls === 1 ? 'call' : 'calls'}&lt;/h2&gt;&lt;ol&gt;${chips}&lt;/ol&gt;&lt;/section&gt;`
+  })</code></pre>
+
+<p>The CSS and the script are inline, so the file opens with no network access. The Pause button toggles a <code>paused</code> class on <code>body</code>. The rule <code>body.paused * { animation-play-state: paused; }</code> then freezes every animation.</p>
+<p>Only two values in the page are text: the session id and the tool name. Both go through <code>esc</code>, which turns the five characters into numeric entities such as <code>&amp;#38;</code>. Prompt text never reaches the page, because only its length is stored. Every other value is a number.</p>
+<pre><code>function esc(text: string): string {
+  return text.replace(/[&amp;&lt;&gt;"']/g, char =&gt; `&amp;#${char.charCodeAt(0)};`)
+}</code></pre>
+
+<div class="note"><strong>The page never reads the timestamps.</strong> Each event carries an <code>at</code> time, and the README says each event has a timestamp. The page does not read <code>at</code>. Chips inside a turn are spaced by count, not by real time. Only each turn's real duration shapes the page, through its slot.</div>
+
+<h2>How to use it</h2>
+<p>Install the mod from its marketplace. Replace <code>&lt;owner&gt;/&lt;repo&gt;</code> with the GitHub repository that hosts the marketplace. The marketplace folder has no git remote, so that value is not known yet.</p>
+<pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+claude plugin install time-lapse@waraxe-claude-mods</code></pre>
+
+<ul class="steps">
+  <li>Start a session. Recording begins when the plugin loads.</li>
+  <li>Send a prompt or two, and let some tools run.</li>
+  <li>Run <code>/time-lapse</code>. If nothing is recorded yet, it says so and writes no page.</li>
+  <li>Otherwise it writes the replay to <code>~/.claude/time-lapse/&lt;session id&gt;.html</code> and opens it with <code>open</code>. If <code>open</code> fails, the command shows the path, and you open the file yourself. The folder is created on the first write.</li>
+  <li>The log sits beside it in <code>~/.claude/time-lapse/&lt;session id&gt;.json</code>. It holds lengths, tool names and durations only.</li>
+</ul>
+
+<p><strong>Cost.</strong> No model calls. Each event costs a read and a write of the whole session log.</p>
+<div class="warn"><strong>README and source differ on cost.</strong> The README says the only cost is "a small file write per event". The code reads the whole log before each write, so the work per event grows as the session grows.</div>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>Recording starts when the plugin loads, so earlier activity is missing.</li>
+  <li>Playback shows order and rhythm, not exact timing. Each turn is compressed into at most two seconds.</li>
+  <li>Past about 4 MB, the log cannot be read, and recording stops for that session.</li>
+</ul>
+<div class="note"><strong>Where the 4 MB limit comes from.</strong> The mod has no size check. The engine's <code>$.fs.read</code> rejects any file over 4 MiB, and that is what stops recording. Once the read fails, each later append fails too. <code>/time-lapse</code> should also fail at that point, because its read is not caught. The README's "tens of thousands of events" is an estimate, and nothing in the source checks it.</div>
+
+<h2>Check yourself</h2>
+<details class="check">
+<summary>Why does <code>prompt.submit</code> store the prompt's length and not its text?</summary>
+<p>The mod keeps no prompt or reply text, as the README says. The event keeps only <code>e.text.length</code>, a number, so the log never holds what the user typed.</p>
+</details>
+<details class="check">
+<summary>A subagent finishes a turn. Does that close the main turn?</summary>
+<p>No. The <code>turn.complete</code> hook checks <code>e.agentId === undefined</code>, and a subagent's end carries an <code>agentId</code>. Its tool calls still count toward the main turn, because the <code>tool.call</code> hook does not check <code>agentId</code>.</p>
+</details>
+<details class="check">
+<summary>The header shows a "Replay runs" time. What does that figure measure?</summary>
+<p>The sum of the turn slots. Each slot is the turn's real duration, kept between 400 ms and 2 s, and an unfinished turn gets 2 s. It is not how long the session took, and the stored timestamps play no part in it.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li>The main source: <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/time-lapse/hooks/register.ts">hooks/register.ts</a>. Compare it with the snippets above.</li>
+  <li>The API types: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a>. Search it for a name such as <code>turn.complete</code> rather than reading it whole.</li>
+  <li>The cheat sheet: <a href="../reference/mod-api-cheatsheet.html">mod API cheat sheet</a>.</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0039-narrator.html">← 0039 Narrator</a>
+  <a href="../index.html">Index</a>
+  <a href="0041-cosmetic-mods.html">0041 Cosmetic mods →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

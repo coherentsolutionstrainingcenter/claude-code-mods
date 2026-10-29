@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0035: Repo heatmap</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0035 · Family</p>
+<h1>Repo heatmap</h1>
+<p class="lede">repo-heatmap opens a pane that shows how a repository's files spread across its folders and across kinds such as code, tests, docs, design and data.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt><dd>repo-heatmap 0.1.0, in the waraxe-claude-mods marketplace</dd>
+  <dt>Folder</dt><dd><code>plugins/repo-heatmap</code></dd>
+  <dt>Hooks</dt><dd><code>session.start</code> (registers <code>/heatmap</code>), <code>command.run</code> (opens the pane and starts a count), <code>ui.render</code> on <code>Pane</code> (draws the bars and the Refresh button)</dd>
+  <dt>Calls</dt><dd><code>$.command.register</code>, <code>$.ui.open</code>, <code>$.ui.resolve</code>, <code>$.session.cwd</code>, <code>$.process.run</code>, and <code>atom</code>, <code>read</code> and <code>update</code> over <code>$.state</code></dd>
+  <dt>Files</dt><dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>types/index.d.ts</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt><dd>Igor Waraxe, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>repo-heatmap</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install repo-heatmap@waraxe-claude-mods</code> · folder <a href="../../plugins/repo-heatmap/">plugins/repo-heatmap</a> · <a href="../../plugins/repo-heatmap/INSTRUCTIONS.md">instructions</a><br>Needs: git.</div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p><code>/heatmap</code> runs <code>git ls-files</code> in the session's folder, groups the tracked files by top-level folder and by kind, and draws one colored bar per folder. The kinds are code, tests, docs, design (svg, png, jpg, fig, sketch), data (json, csv, sql, db, yaml), config and other. The biggest folders come first, up to 15 rows, with a legend of each kind's count above them and a total line below. Outside a git repository it says so and does not walk the disk. A Refresh button counts again. It makes no model calls.</p>
+<p>Your <a href="../MISSION.md">mission</a> asks you to say which hook events and API calls a mod uses and why, and this mod shows the plain pattern for running a host command from a pane: <code>$.process.run</code>, then a <code>$.state</code> atom the pane redraws from.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>35</td><td>Repo heatmap</td><td><code>/heatmap</code> shows how a repo&#x27;s files are spread across folders, such as design files versus database files</td><td>Video only: <a href="https://www.youtube.com/watch?v=uvIopT_2sY0">video</a> · <a href="../reference/mod-catalogue.html#m35">catalogue</a></td></tr>
+    <tr><td>35, built here</td><td>repo-heatmap (shipped)</td><td><code>/heatmap</code> counts the files git tracks by top-level folder and kind, and draws up to 15 colored bars with a total line</td><td><a href="../../plugins/repo-heatmap/">plugins/repo-heatmap</a>, MIT, written for this marketplace from the video's description</td></tr>
+  </tbody>
+</table>
+<div class="warn"><strong>Lead, not confirmed.</strong> The Hamza Zafar marketplace (<code>hamzafer/claude-code-mods</code>) has a mod named <code>heatmap</code>, in <code>mods/heatmap</code>. Its description says it draws your own Claude Code time as a grid, in a <code>/heatmap</code> pane. This family is named for a repo, so it may be a different mod. This page does not treat the two as the same.</div>
+
+<h2>How it was built</h2>
+<p>The whole mod is one hooks module, <code>hooks/register.tsx</code>. Each snippet below is copied from it.</p>
+
+<h3>1. Open the pane, then count</h3>
+<p><code>session.start</code> registers <code>/heatmap</code>. The command's hook opens the pane and starts the count without waiting for either, so the pane appears at once and shows "Running git ls-files…" until the count is in.</p>
+<pre><code>  on('command.run', { command: 'heatmap' }, async $ =&gt; {
+    void $.ui.open({ id: PANE, title: 'Repo heatmap' })
+    void refresh($)
+
+    return { text: 'Repo heatmap opened.' }
+  })</code></pre>
+
+<h3>2. Ask git for the file list</h3>
+<p><code>$.process.run</code> runs a command by its arguments, with no shell, and resolves with its exit code and output. The mod asks for the session's folder with <code>$.session.cwd()</code> and runs git there. A non-zero exit whose message says "not a git repository" becomes the <code>not-repo</code> status, and the pane says so.</p>
+<pre><code>  const folder = await $.session.cwd()
+  await update($, view, (v): View =&gt; ({ ...v, status: 'reading', folder, error: '' }))
+
+  try {
+    // -z ends each path with a NUL byte and leaves odd names unquoted. LC_ALL=C keeps
+    // git's messages in English, so "not a git repository" can be recognised.
+    const run = await $.process.run(['git', 'ls-files', '-z'], { cwd: folder, env: { LC_ALL: 'C' }, timeoutMs: 60_000 })
+    if (run.exitCode !== 0) {
+      const isRepo = !/not a git repository/i.test(run.stderr)
+      const error = run.stderr.trim().slice(0, 300)
+      await update($, view, (v): View =&gt; ({ ...v, status: isRepo ? 'failed' : 'not-repo', error }))
+      return
+    }</code></pre>
+
+<h3>3. Group the files by top-level folder</h3>
+<p>Everything before the first slash is the folder. Files with no slash go into one row named <code>(top level)</code>. The rows are sorted biggest first, and only the first 15 are kept, with the full count of rows beside them for the total line.</p>
+<pre><code>/** Groups the paths by top-level folder and kind, biggest folder first, and keeps the first 15. */
+function summarize(paths: readonly string[]): { rows: Row[]; totals: Counts; rowCount: number } {
+  const byFolder = new Map&lt;string, Counts&gt;()
+  const totals = emptyCounts()
+  for (const path of paths) {
+    const slash = path.indexOf('/')
+    const folder = slash === -1 ? TOP_LEVEL : path.slice(0, slash + 1)
+    const counts = byFolder.get(folder) ?? emptyCounts()
+    const kind = kindOf(path)
+    counts[kind] += 1
+    totals[kind] += 1
+    byFolder.set(folder, counts)
+  }
+
+  const rows = [...byFolder]
+    .map(([folder, counts]) =&gt; ({ folder, counts, total: sumOf(counts) }))
+    .sort((a, b) =&gt; b.total - a.total || a.folder.localeCompare(b.folder))
+
+  return { rows: rows.slice(0, MAX_ROWS), totals, rowCount: rows.length }
+}</code></pre>
+
+<h3>4. Sort each file into a kind</h3>
+<p>The kind comes from the name and the folder, never from the file's content, so no file is opened. The rules run in order and the first match wins: a JSON file under <code>tests/</code> is a test, and <code>package.json</code> is config, not data.</p>
+<pre><code>  if (
+    parts.slice(0, -1).some(part =&gt; TEST_FOLDERS.has(part)) ||
+    /[._-](test|spec)\.[a-z0-9]+$/.test(name) ||
+    /^test_.+\.py$/.test(name)
+  ) {
+    return 'tests'
+  }
+  if (DESIGN.has(ext)) {
+    return 'design'
+  }
+  if (
+    parts.some(part =&gt; part.startsWith('.')) || // dotfiles and hidden folders: .github, .gitignore
+    CONFIG.has(ext) ||
+    CONFIG_NAMES.has(name) ||
+    /^tsconfig\..+\.json$/.test(name) ||
+    /\.config\.[cm]?[jt]s$/.test(name)
+  ) {
+    return 'config'
+  }</code></pre>
+
+<h3>5. Split each bar into colored runs</h3>
+<p>Each kind's run ends where the running total lands on the bar. Rounding the running total, instead of each kind on its own, keeps the runs from adding up to more than the bar. A folder with files always keeps at least one cell.</p>
+<pre><code>/**
+ * Splits one bar into colored runs, a run per kind. Each run ends where the running total
+ * lands, so the rounding never adds up to more than the bar. A folder with files always
+ * shows at least one cell.
+ */
+function barCells(counts: Counts, max: number, width: number): { kind: Kind; cells: number }[] {
+  let sum = 0
+  let drawn = 0
+  const segments = KINDS.map(kind =&gt; {
+    sum += counts[kind]
+    const end = Math.round((sum / max) * width)
+    const cells = end - drawn
+    drawn = end
+    return { kind, cells }
+  })
+
+  if (drawn === 0 &amp;&amp; sum &gt; 0) {
+    const biggest = KINDS.reduce((best, kind) =&gt; (counts[kind] &gt; counts[best] ? kind : best))
+    return [{ kind: biggest, cells: 1 }]
+  }
+
+  return segments.filter(segment =&gt; segment.cells &gt; 0)
+}</code></pre>
+
+<h3>6. Draw one row per folder</h3>
+<p>The bar's width comes from <code>e.props.bodyColumns</code>, the pane's own width, less the name and count columns. Each row is one <code>Text</code> holding a colored <code>Text</code> per run, so the row stays on one line.</p>
+<pre><code>      {current.rows.map(row =&gt; (
+        &lt;Text&gt;
+          {fit(row.folder, nameWidth)} {String(row.total).padStart(countWidth)}{' '}
+          {barCells(row.counts, max, barWidth).map(segment =&gt; (
+            &lt;Text color={COLORS[segment.kind]}&gt;{'█'.repeat(segment.cells)}&lt;/Text&gt;
+          ))}
+        &lt;/Text&gt;
+      ))}</code></pre>
+
+<h3>7. Refresh, one run at a time</h3>
+<p>The Refresh button's <code>onPress</code> calls <code>refresh($)</code>, the same function the command starts. The function returns at once while a count is already running, so pressing twice does not start two copies of git.</p>
+<pre><code>/** Runs git ls-files in the session's folder and stores the counts. One run at a time. */
+async function refresh($: EngineInterface): Promise&lt;void&gt; {
+  if ((await read($, view)).status === 'reading') {
+    return
+  }</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install repo-heatmap@waraxe-claude-mods</code></pre>
+<ul class="steps">
+  <li>Run <code>/heatmap</code> in a session started inside a git repository.</li>
+  <li>Read the legend for each kind's count, then the rows: one bar per top-level folder, biggest first.</li>
+  <li>Press <strong>Refresh</strong> after you add or delete files. There are no settings.</li>
+</ul>
+<p><strong>What it costs.</strong> No model calls. Each count runs <code>git ls-files</code> once, on your machine.</p>
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>Only files git tracks are counted. Untracked and ignored files are left out, and a repository with nothing committed or staged shows no files.</li>
+  <li>Outside a git repository the pane says so. It does not walk the disk instead.</li>
+  <li>In a subfolder of a repository it counts that subfolder only, because git lists paths under the folder it runs in.</li>
+  <li>Kinds come from names, not content. A YAML file outside a hidden folder counts as data, even when it configures something.</li>
+  <li>A file list over 4 MiB is cut, and the pane then says the counts are partial. Folders past the 15th are not drawn; the total line says how many.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the mod ask git for the list instead of listing the folder itself with <code>$.fs</code>?</summary>
+  <p>git's list is the repository's own files: it already leaves out what <code>.gitignore</code> excludes, such as <code>node_modules</code> and build output, and it comes back in one fast call. Walking the disk would count those too and could take a long time on a big folder. Outside a repository there is no such list, so the mod says so instead.</p>
+</details>
+<details class="check">
+  <summary>The biggest folder has 2,000 files and another has 1. Why does the small folder's bar still show?</summary>
+  <p>At that scale its share rounds to zero cells. <code>barCells</code> checks for a folder with files but no cells drawn, and gives one cell to its biggest kind, so every listed folder has a visible bar.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="../../plugins/repo-heatmap/hooks/register.tsx">The source: plugins/repo-heatmap/hooks/register.tsx</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">Engine API types: claude-code.d.ts</a> (grep it for <code>process: {</code> and <code>export type ProcessRunResult</code>)</li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0034-next-steps.html">← 0034 Next steps</a>
+  <a href="../index.html">Index</a>
+  <a href="0036-design-picker.html">0036 Design picker →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

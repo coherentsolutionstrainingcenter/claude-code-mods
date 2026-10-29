@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0006: Effort picker</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0006 · Family</p>
+<h1>Effort picker</h1>
+<p class="lede">A mod that sets the reasoning effort for each message you send, for that message only, from the words you typed. It never switches the model.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt>
+  <dd><code>effort-picker</code> 0.1.0, written for this marketplace</dd>
+  <dt>Folder</dt>
+  <dd><code>plugins/effort-picker</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code> (registers <code>/effort-picker</code>), <code>command.run</code> (sets the mode), <code>prompt.submit</code> (picks a level), <code>turn.start</code> (matches the pick to its turn), <code>turn.step</code> (sends each request of that turn with the level)</dd>
+  <dt>Calls</dt>
+  <dd><code>$.command.register</code>, <code>$.store.get</code>, <code>$.store.set</code>, <code>$.ui.log</code>. No model calls.</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.ts</code> (163 lines), <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt>
+  <dd>Igor Waraxe, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>effort-picker</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install effort-picker@waraxe-claude-mods</code> · folder <a href="../../plugins/effort-picker/">plugins/effort-picker</a> · <a href="../../plugins/effort-picker/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>effort-picker reads each message you type and checks four rules in order, stopping at the first match. A long job you hand off ("overnight", "end to end", "the whole ...") gets xhigh, and "go all out" or a security audit gets max. A message where a hidden mistake could cost you gets high: money, a client, publishing, something hard to undo, or something broken. A short question or a small tweak gets low. Anything else keeps your own level.</p>
+<p>The level holds for the model requests that answer that one message. A dim line in the transcript says what was picked and why, for example <code>Effort picker: high for this message, up from medium: money is involved.</code> The model never changes, because a switch in the middle of a chat makes Claude reread the whole chat.</p>
+<p>It serves <a href="../MISSION.md">your mission</a> because it shows which event can change a request on its way to the model, and why the obvious one, <code>prompt.submit</code>, cannot do it alone.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>23</td><td>Effort Picker (best)</td><td>Picks the effort for each message, for that message only. Tips you when another model fits better.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/wearenocode-claude-mods/effort-picker">wearenocode-claude-mods/effort-picker</a></td></tr>
+    <tr><td>23a</td><td>Manual toolbar</td><td>You choose the effort each time, and your choice overrides the picker. The workspace synthesis describes it, but no code is on disk.</td><td>Video only: <a href="https://www.youtube.com/watch?v=LDn7rQKIFro">video</a> · <a href="../reference/mod-catalogue.html#m23a">catalogue</a></td></tr>
+    <tr><td>Ours</td><td>effort-picker</td><td>Sets the effort for each message from four word rules, for that message only, and says why in one line. <code>/effort-picker tip</code> only suggests. It never switches the model.</td><td>Here: <code>plugins/effort-picker</code>. MIT, shipped in this marketplace</td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The mod is one file, <code>hooks/register.ts</code>. The first question was where effort can be set. The input of <code>prompt.submit</code> carries the text, the context, the origin and the command, but no effort. The input of <code>turn.step</code> does: the engine raises it for each model request of a turn, and its doc says a hook rewrites <code>model</code> or <code>effort</code> going down. So the mod picks a level at <code>prompt.submit</code>, ties it to the turn at <code>turn.start</code>, and applies it at <code>turn.step</code>.</p>
+
+<h3>1. Pick a level from the words</h3>
+<p>The rules are one ordered list, and <code>pickFor</code> takes the first that matches. The order is the order of the four rules: long or all-out jobs, then costly mistakes, then quick back-and-forth. No match returns <code>null</code>, which is rule 4: your own level stays.</p>
+<pre><code>// Checked in order; the first match wins. No match is rule 4: the person's own level stays.
+const RULES: readonly Rule[] = [
+  { level: 'max', why: 'you asked to go all out', test: said =&gt; ALL_OUT.test(said) },
+  { level: 'max', why: 'a security audit', test: said =&gt; SECURITY_AUDIT.test(said) },
+  { level: 'xhigh', why: 'a long job handed off', test: said =&gt; HANDED_OFF.test(said) },
+  { level: 'high', why: 'money is involved', test: said =&gt; MONEY.test(said) },
+  { level: 'high', why: 'a client will see it', test: said =&gt; CLIENT.test(said) },
+  { level: 'high', why: 'it gets published', test: said =&gt; PUBLISHING.test(said) },
+  { level: 'high', why: 'it is hard to undo', test: said =&gt; HARD_TO_UNDO.test(said) },
+  { level: 'high', why: 'something is broken', test: said =&gt; BROKEN.test(said) },
+  { level: 'low', why: 'a short question', test: said =&gt; said.length &lt;= 140 &amp;&amp; (said.endsWith('?') || WH_QUESTION.test(said)) },
+  { level: 'low', why: 'a small tweak', test: said =&gt; said.length &lt;= 200 &amp;&amp; TWEAK.test(said) },
+]
+
+/** The level a message asks for, and why; null leaves the person's own level. */
+export function pickFor(text: string): Pick | null {
+  const said = text.trim()
+  const rule = said === '' ? undefined : RULES.find(one =&gt; one.test(said))
+
+  return rule === undefined ? null : { level: rule.level, why: rule.why }
+}</code></pre>
+
+<h3>2. Hold the pick while the prompt enters</h3>
+<p>The <code>prompt.submit</code> hook leaves alone anything you did not type yourself, a slash command, a hidden (meta) prompt, and a message that starts with <code>go:</code>. Any other message with a pick goes into a short <code>waiting</code> list, which keeps the last five. After <code>next(e)</code>, a dropped prompt loses its pick, and a prompt a hook beneath rewrote keeps its pick under the new text.</p>
+<pre><code>  on('prompt.submit', async ($, e, next) =&gt; {
+    const isLeftAlone =
+      !PERSON.has(e.origin.kind) || e.command !== undefined || e.isMeta === true || /^\s*go:/i.test(e.text)
+    const mode = isLeftAlone ? 'off' : await modeOf($)
+    const pick = mode === 'off' ? null : pickFor(e.text)
+    if (pick === null) return next(e)
+
+    const entry: Waiting = { text: e.text, pick, mode }
+    waiting = [...waiting.slice(-4), entry]
+    const result = await next(e)
+    // A dropped prompt starts no turn; one a hook beneath rewrote starts its turn with the new text.
+    waiting =
+      result.drop !== undefined
+        ? waiting.filter(one =&gt; one !== entry)
+        : waiting.map(one =&gt; (one === entry ? { ...one, text: result.text } : one))
+
+    return result
+  })</code></pre>
+
+<h3>3. Match the pick to its turn</h3>
+<p><code>turn.start</code> gives the turn's id and the text it begins with. The hook looks only at the main chat (no <code>agentId</code>), finds the waiting pick with the same text, and binds it to this turn. A turn with no match binds nothing, so it keeps your level.</p>
+<pre><code>  on('turn.start', async ($, e, next) =&gt; {
+    if (e.agentId === undefined) {
+      const match = waiting.find(one =&gt; one.text === e.text)
+      waiting = waiting.filter(one =&gt; one !== match)
+      bound = match === undefined ? null : { turnId: e.turnId, pick: match.pick, mode: match.mode }
+    }
+
+    return next(e)
+  })</code></pre>
+
+<h3>4. Never lower xhigh or max</h3>
+<p><code>levelFor</code> decides what to send. The same level is no change. A level of xhigh or max that you set yourself is never lowered, but a pick can still raise xhigh to max. Any other level can go up or down.</p>
+<pre><code>/** The level to send instead of `from`, or undefined to keep `from`. */
+export function levelFor(from: ModelEffort, pick: ModelEffort): ModelEffort | undefined {
+  if (pick === from) return undefined
+  // A level the person set to xhigh or max is never lowered.
+  if (RANK[from] &gt;= RANK.xhigh &amp;&amp; RANK[pick] &lt; RANK[from]) return undefined
+
+  return pick
+}</code></pre>
+
+<h3>5. Send each request of the turn with the level</h3>
+<p><code>turn.step</code> streams, so the hook is an async generator and forwards the stream with <code>yield*</code>. It skips subagents, other turns, and an effort that is absent or a number. On the first request of the turn it writes the line with <code>$.ui.log</code>. In <code>on</code> mode it passes on a copy with the new effort. In <code>tip</code> mode it passes the request on unchanged. Nothing writes your saved setting.</p>
+<pre><code>  // Each model request of the turn: the main chat's alone, never a subagent's.
+  on('turn.step', async function* ($, e, next) {
+    const now = bound
+    if (e.agentId !== undefined || now === null || now.turnId !== e.turnId || typeof e.effort !== 'string') {
+      return yield* next(e)
+    }
+
+    const to = levelFor(e.effort, now.pick.level)
+    if (to === undefined) return yield* next(e)
+    if (e.index === 0) $.ui.log(lineFor(now.mode, e.effort, to, now.pick.why))
+
+    // Only this request carries the new level; the saved setting is never written.
+    return yield* next(now.mode === 'on' ? { ...e, effort: to } : e)
+  })</code></pre>
+
+<h3>6. One command, three modes</h3>
+<p><code>session.start</code> registers <code>/effort-picker</code>, and a <code>command.run</code> hook answers it. The mode is kept in <code>$.store</code>, the mod's own store, so it holds across sessions. With nothing after the command, it says which mode is on.</p>
+<pre><code>  on('session.start', async ($, e, next) =&gt; {
+    await $.command.register({
+      name: 'effort-picker',
+      description: 'Effort for each message: on, off or tip (suggest only)',
+      argumentHint: 'on | off | tip',
+    })
+
+    return next(e)
+  })
+
+  on('command.run', { command: 'effort-picker' }, async ($, e) =&gt; {
+    const asked = e.args.trim().toLowerCase()
+    if (isMode(asked)) {
+      await $.store.set('mode', asked)
+
+      return { text: SAID[asked] }
+    }
+
+    return { text: `${SAID[await modeOf($)]} Use /effort-picker on, off or tip.` }
+  })</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install effort-picker@waraxe-claude-mods</code></pre>
+
+<ul class="steps">
+  <li>Type a message as you normally would. The picker sets the level for that message only, and a dim line says what it picked and why.</li>
+  <li>Type <code>/effort-picker tip</code> to see the picks without applying them.</li>
+  <li>Type <code>/effort-picker off</code> to stop it, and <code>/effort-picker on</code> to start it again. On is the default.</li>
+  <li>Start a message with <code>go:</code> to keep your own level for it.</li>
+</ul>
+
+<p><strong>Cost.</strong> The mod makes no model calls. It reads only your words. A higher level makes Claude think longer and uses more of your plan, and a lower level uses less. The mod does not measure how much.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>The rules are English word patterns. A message with none of the words keeps your level, and a word can match by accident. "error" in a short question gets high, because rule 2 comes before rule 3.</li>
+  <li>Only the main chat's requests change. Subagents keep their own effort.</li>
+  <li>A pick is matched to its turn by the message's text. A message typed while Claude works is picked only if it starts a turn of its own. A reload of the mod clears the picks, and the message then keeps your level.</li>
+  <li>A model with no effort setting, or an effort set as a number, is left alone. The engine may lower a level the model does not support.</li>
+  <li>Tip mode only shows the suggestion. It has no button to apply it.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the mod need <code>turn.step</code>? Why can't the <code>prompt.submit</code> hook set the effort itself?</summary>
+  <p><code>PromptSubmitInput</code> has no effort field: a hook there can change the text and add context, nothing about the request. <code>TurnStepInput</code> carries <code>effort</code> for each model request, and a hook rewrites it with <code>next({ ...e, effort: to })</code>. So <code>prompt.submit</code> picks, <code>turn.start</code> ties the pick to the turn's id, and <code>turn.step</code> applies it.</p>
+</details>
+<details class="check">
+  <summary>Your own level is xhigh, and you type "what does this function return?". What effort is sent, and does a line appear?</summary>
+  <p>Rule 3 picks low. <code>levelFor('xhigh', 'low')</code> returns <code>undefined</code>, because a level of xhigh or max is never lowered. The hook then returns <code>yield* next(e)</code> before it reaches <code>$.ui.log</code>, so the request goes at xhigh and no line appears.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="../../plugins/effort-picker/hooks/register.ts">The mod's source: hooks/register.ts</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: <code>TurnStepInput</code>, <code>PromptSubmitInput</code>, <code>$.ui.log</code></a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0005-mod-doctor.html">← 0005 Mod doctor</a>
+  <a href="../index.html">Index</a>
+  <a href="0007-assumption-check.html">0007 Assumption check →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

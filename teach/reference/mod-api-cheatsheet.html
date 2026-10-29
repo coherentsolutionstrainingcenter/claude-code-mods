@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference: mod API cheat sheet</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+<p class="kicker">Reference</p>
+<h1>Mod API cheat sheet</h1>
+<p class="lede">The parts of the hook API that our mods use, checked against the engine's type file for build 2.1.308. Look a name up here, then grep the type file for its full doc comment.</p>
+
+<h2>Plugin folder</h2>
+<dl class="meta">
+<dt>.claude-plugin/plugin.json</dt><dd>name, version, description, author, license, and optional <code>types</code> and <code>userConfig</code>.</dd>
+<dt>hooks/hooks.json</dt><dd><code>{ "modules": ["./register.ts"] }</code>. The path is relative to this file.</dd>
+<dt>hooks/register.ts or .tsx</dt><dd>exports <code>register: Register</code>. Use .tsx only when the mod draws panes with JSX.</dd>
+<dt>types/index.d.ts</dt><dd>only when the mod keeps state in atoms. Declares each atom in <code>PluginState</code>.</dd>
+<dt>README.md, LICENSE</dt><dd>read by people who install the mod. The marketplace root holds one LICENSE.</dd>
+</dl>
+
+<h2>The hook shape</h2>
+<pre><code>on('event', matcher?, async ($, e, next) =&gt; {
+  // $   the engine interface: $.noun.method(...)
+  // e   the event's input, a frozen plain value
+  // next(e)  runs the other hooks, then the engine's own behaviour
+})</code></pre>
+<ul class="steps">
+<li>A hook that returns without calling <code>next</code> answers for itself.</li>
+<li><code>next({ ...e, text })</code> rewrites what the rest sees.</li>
+<li>Spell <code>on(...)</code> and <code>$.noun.method(...)</code> literally in the source. The validator reads them from the text.</li>
+</ul>
+
+<h2>Events we use</h2>
+<table>
+<tr><th>Event</th><th>When</th><th>Useful fields</th></tr>
+<tr><td><code>session.start</code></td><td>the session begins</td><td>register commands here</td></tr>
+<tr><td><code>prompt.submit</code></td><td>the person sends a prompt</td><td><code>text</code>, <code>origin.kind</code> (<code>composer</code> for a typed prompt), <code>command</code>, <code>isMeta</code></td></tr>
+<tr><td><code>tool.call</code></td><td>Claude calls a tool</td><td><code>tool</code>, plus the tool's input such as <code>command</code> or <code>file_path</code>. The result has <code>deny</code>, <code>isError</code> and <code>text</code>.</td></tr>
+<tr><td><code>turn.complete</code></td><td>a turn ends</td><td><code>answer</code>, <code>durationMs</code>, <code>isAborted</code>, <code>agentId</code> (set only for subagents)</td></tr>
+<tr><td><code>command.run</code></td><td>a registered slash command runs</td><td><code>args</code>; match with <code>{ command: 'name' }</code></td></tr>
+<tr><td><code>ui.render</code></td><td>a pane or band is drawn</td><td><code>requestId</code>, <code>viewport</code>; match with <code>{ component: 'Pane', requestId }</code></td></tr>
+</table>
+
+<h2>The noun calls</h2>
+<table>
+<tr><th>Call</th><th>What it does</th><th>Limit or note</th></tr>
+<tr><td><code>$.ui.open({ id, title })</code></td><td>opens a pane</td><td>may wait, undrawn, for a wide terminal</td></tr>
+<tr><td><code>$.ui.ask(question, options)</code></td><td>asks the person and returns the label chosen</td><td>rejects when dismissed or in <code>-p</code> runs</td></tr>
+<tr><td><code>$.ui.toast(text)</code></td><td>a short message</td><td>plugin toasts stack in the top right</td></tr>
+<tr><td><code>$.ui.status(text)</code></td><td>one status line for this plugin</td><td><code>undefined</code> clears it</td></tr>
+<tr><td><code>$.model.complete({ model, prompt, maxTokens, effort, timeoutMs })</code></td><td>one completion with no tools and no history</td><td>resolves a result; check <code>isAnswered</code> before reading <code>text</code></td></tr>
+<tr><td><code>$.process.run(argv, { cwd, timeoutMs })</code></td><td>runs a command with no shell</td><td>30 s by default, 10 min at most; each output stream is cut at 4 MiB</td></tr>
+<tr><td><code>$.fs.read / write / list / exists</code></td><td>files</td><td>read rejects over 4 MiB; write creates folders</td></tr>
+<tr><td><code>$.store.get / set / delete / keys</code></td><td>values that survive restarts, shared across sessions</td><td>JSON only; 4 MiB in all</td></tr>
+<tr><td><code>$.state</code> with <code>atom</code>, <code>read</code>, <code>update</code></td><td>values a pane redraws from, held for the session</td><td>declare the type in <code>types/index.d.ts</code></td></tr>
+<tr><td><code>$.session.id() / cwd() / messages()</code></td><td>this session's id, folder and transcript</td><td><code>cwd</code> is the start folder, not where the shell is now</td></tr>
+<tr><td><code>$.prompt.submit({ text })</code></td><td>sends a prompt as a new turn</td><td>waits until the session is idle</td></tr>
+<tr><td><code>$.config.list()</code></td><td>the values of this plugin's <code>userConfig</code></td><td>keys look like <code>plugin-name.field</code></td></tr>
+<tr><td><code>$.clock.now() / sleep(ms) / after / every</code></td><td>time</td><td>a hook has 10 s of its own time, but time inside a <code>$</code> call is free</td></tr>
+<tr><td><code>$.command.register({ name, description })</code></td><td>adds a slash command</td><td>call it in <code>session.start</code></td></tr>
+<tr><td><code>$.plugin.root</code></td><td>the plugin's own folder</td><td>use it to find scripts the mod ships</td></tr>
+<tr><td><code>$.env.get(name)</code></td><td>one environment variable</td><td>returns <code>undefined</code> when unset</td></tr>
+</table>
+
+<h2>Shapes of a result</h2>
+<ul class="steps">
+<li><strong>Deny a tool call:</strong> return <code>{ deny: 'reason' }</code>. The model reads the reason as an error.</li>
+<li><strong>Answer a command:</strong> return <code>{ text: 'message' }</code>.</li>
+<li><strong>Draw a pane:</strong> return one element tree from the <code>ui.render</code> hook, built with <code>$.ui.resolve(e)</code>.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl class="meta">
+<dt>Mod</dt><dd>a plugin that uses hooks to change how Claude Code behaves.</dd>
+<dt>Marketplace</dt><dd>a folder or repository that lists plugins, with a <code>marketplace.json</code>.</dd>
+<dt>Hold</dt><dd>a hook waits for a decision before it lets a tool call run. Blast Radius and collision-guard do this.</dd>
+<dt>Fail open</dt><dd>when a hook breaks, the call goes ahead.</dd>
+<dt>Fail closed</dt><dd>when a hook breaks, the call is refused.</dd>
+<dt>Composer prompt</dt><dd>a prompt the person typed at the terminal (<code>origin.kind === 'composer'</code>).</dd>
+<dt>Validator</dt><dd><code>claude plugin validate &lt;folder&gt;</code>. It checks the structure and lists the events and calls a mod declares. It does not run the mod.</dd>
+</dl>
+
+<h2>Where the full API lives</h2>
+<p>The engine's type file is <code>engine/types/claude-code.d.ts</code>. It has about 22,000 lines. Grep it for an event name, a noun or a method. The file is written for this build, so check the version before you rely on it.</p>
+
+<nav class="lesson-nav">
+<a href="../lessons/0016-collision-guard.html">Lesson 0016: collision guard</a>
+<a href="../index.html">Index</a>
+</nav>
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+</main>
+</body>
+</html>

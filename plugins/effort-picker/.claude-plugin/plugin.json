@@ -1,0 +1,9 @@
+{
+  "name": "effort-picker",
+  "version": "0.1.0",
+  "description": "Picks the reasoning effort for each message you send, for that message only, from its words, and never switches the model",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT"
+}

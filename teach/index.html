@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code mods course</title>
+<link rel="stylesheet" href="assets/lesson.css">
+</head>
+<body>
+<main>
+<p class="kicker">Index</p>
+<h1>Claude Code mods course</h1>
+<p class="lede">43 lessons, one per plugin in this marketplace, ordered by tier: the most useful mods first. Each lesson covers what the mod is, how it was built, with the code, and how to use it.</p>
+<div class="note"><strong>Start here.</strong> Read the <a href="reference/mod-api-cheatsheet.html">API cheat sheet</a>, then lesson 0001. The <a href="reference/mod-catalogue.html">mod catalogue</a> lists all 109 reviewed mods. Your goal is in <a href="MISSION.md">MISSION.md</a>, and the full review is in <a href="../docs/MODS-FINAL-SYNTHESIS.md">MODS-FINAL-SYNTHESIS.md</a>.</div>
+<h2>Tier 1 (grade 8)</h2>
+<ul class="steps">
+<li><a href="lessons/0001-delete-guard.html">0001 · Delete guard</a> <span class="kicker">plugin blast-radius</span><br><span class="lede">These mods guard against a bad delete: they stop a risky shell command such as rm -rf and show what it would remove, or keep a copy so the delete can be undone.</span></li>
+<li><a href="lessons/0002-delete-backup.html">0002 · Delete backup</a> <span class="kicker">plugin delete-backup</span><br><span class="lede">delete-backup copies the files an rm is about to delete into a backup folder first, so /undo-delete can put the newest deletion back.</span></li>
+<li><a href="lessons/0003-reflect-and-memory.html">0003 · Reflect and memory</a> <span class="kicker">plugin reflect-mod</span><br><span class="lede">These mods turn a correction you give Claude into a lasting rule, so the next chat starts from what you already taught it. This marketplace ships reflect-mod, which finds the rule in your prompt and offers to save it to CLAUDE.md.</span></li>
+<li><a href="lessons/0004-mods-manager.html">0004 · Mods manager</a> <span class="kicker">plugin mod-store</span><br><span class="lede">These mods manage your other mods from a pane. This marketplace ships Mod Store: type /mods to search about 2,700 community mods, see what each one can access, and install one after you confirm.</span></li>
+<li><a href="lessons/0005-mod-doctor.html">0005 · Mod doctor</a> <span class="kicker">plugin mod-doctor</span><br><span class="lede">Mod doctor runs the plugin validator on each enabled mod that has a folder, then flags failed checks, shared tool.call hooks and names that are enabled twice.</span></li>
+</ul>
+<h2>Tier 2 (grade 7)</h2>
+<ul class="steps">
+<li><a href="lessons/0006-effort-picker.html">0006 · Effort picker</a> <span class="kicker">plugin effort-picker</span><br><span class="lede">A mod that sets the reasoning effort for each message you send, for that message only, from the words you typed. It never switches the model.</span></li>
+<li><a href="lessons/0007-assumption-check.html">0007 · Assumption check</a> <span class="kicker">plugin assumption-check</span><br><span class="lede">After a substantial reply, a small Haiku model lists the guesses Claude made, and you mark each one Right or Wrong.</span></li>
+<li><a href="lessons/0008-secret-handling.html">0008 · Secret handling</a> <span class="kicker">plugin secret-box</span><br><span class="lede">These mods let Claude use an API key without ever seeing it: keys are swapped for placeholders on the way into the chat and back into real values only when a local tool runs.</span></li>
+<li><a href="lessons/0009-side-questions.html">0009 · Side questions</a> <span class="kicker">plugin aside</span><br><span class="lede">A read-only side chat, opened with /aside, that answers questions about the session so far without writing anything back into the main conversation.</span></li>
+<li><a href="lessons/0010-prompt-shaping.html">0010 · Prompt shaping</a> <span class="kicker">plugin prompt-bouncer</span><br><span class="lede">These mods change or stop a prompt at the moment you press Enter, so that Claude gets a clear request instead of a loose one. This marketplace ships Prompt Bouncer, which drops a vague prompt before Claude sees it and suggests the project&#x27;s own word.</span></li>
+<li><a href="lessons/0011-dictation-fixer.html">0011 · Dictation fixer</a> <span class="kicker">plugin dictation-fixer</span><br><span class="lede">It checks a long typed prompt that looks dictated, asks Haiku for a tidied copy, and lets you choose which version is sent.</span></li>
+<li><a href="lessons/0012-cache-guard.html">0012 · Cache guard</a> <span class="kicker">plugin cache-tax</span><br><span class="lede">These mods watch Claude&#x27;s one-hour prompt cache, warn you when it is about to go cold, and in the best version keep it warm during a break or stop one expensive cold send.</span></li>
+<li><a href="lessons/0013-handoff.html">0013 · Handoff</a> <span class="kicker">plugin ctx-handoff</span><br><span class="lede">When a long chat nears a full context, ctx-handoff can have a fork write a summary, runs /clear, and sends the summary into the fresh conversation, so the work carries on without the full history.</span></li>
+<li><a href="lessons/0014-replay.html">0014 · Replay</a> <span class="kicker">plugin replay-theater</span><br><span class="lede">After Claude changes your files, it lets you step through each edit from the last turn, one diff at a time.</span></li>
+<li><a href="lessons/0015-screen-privacy.html">0015 · Screen privacy</a> <span class="kicker">plugin recording-mode</span><br><span class="lede">Type /rec before you record. Keys, personal details and business figures are masked on screen, private files stay closed, and a red REC shows while it is on.</span></li>
+</ul>
+<h2>Tier 3 (grade 6)</h2>
+<ul class="steps">
+<li><a href="lessons/0016-collision-guard.html">0016 · Collision guard</a> <span class="kicker">plugin collision-guard</span><br><span class="lede">It stops two chats from quietly overwriting each other: before an Edit or Write, it asks Proceed or Cancel if another chat changed that file in the last 30 minutes.</span></li>
+<li><a href="lessons/0017-session-monitor.html">0017 · Session monitor</a> <span class="kicker">plugin where-am-i</span><br><span class="lede">A live recap of this session above the prompt: the goal, what Claude is doing now, what is waiting on you, and the next step.</span></li>
+<li><a href="lessons/0018-usage-display.html">0018 · Usage display</a> <span class="kicker">plugin usage-meter</span><br><span class="lede">usage-meter puts one line above the prompt: your plan&#x27;s 5-hour and 7-day usage as small bars, when the 5-hour window resets, and what the session has cost.</span></li>
+<li><a href="lessons/0019-work-panel.html">0019 · Work panel</a> <span class="kicker">plugin savvy-progress</span><br><span class="lede">savvy-progress shows a progress bar above the prompt and a live panel of subagents: running, finished and planned, with model, task progress, context, estimated cost and time.</span></li>
+<li><a href="lessons/0020-work-inventory.html">0020 · Work inventory</a> <span class="kicker">plugin mission-control</span><br><span class="lede">mission-control adds /mission: a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.</span></li>
+<li><a href="lessons/0021-test-fail-magnet.html">0021 · Test-fail magnet</a> <span class="kicker">plugin test-fail-magnet</span><br><span class="lede">After Claude runs your tests, it lists the failing lines in a pane, with Fix to send them back to Claude and Dismiss to clear them.</span></li>
+<li><a href="lessons/0022-park-and-queue.html">0022 · Park and queue</a> <span class="kicker">plugin prompt-queue</span><br><span class="lede">Park and queue holds a message you type while Claude is busy, and sends it once the current turn ends, so the running turn is not changed.</span></li>
+<li><a href="lessons/0023-spend-and-publish-guard.html">0023 · Spend and publish guard</a> <span class="kicker">plugin spend-guard</span><br><span class="lede">spend-guard puts one approval step in front of anything that costs money or publishes: before the call runs, you see what it will do, a short checklist and today&#x27;s approval count, and you choose Proceed or Cancel.</span></li>
+<li><a href="lessons/0024-you-should-know.html">0024 · You Should Know</a> <span class="kicker">plugin heads-up</span><br><span class="lede">heads-up is our own small You Should Know: after a long turn, one Haiku call reads the reply and the turn&#x27;s tool results, and a band above the prompt shows at most two things you might miss, with a Dismiss button.</span></li>
+<li><a href="lessons/0025-human-in-the-loop.html">0025 · Human in the loop</a> <span class="kicker">plugin human-in-the-loop</span><br><span class="lede">Human in the loop lets Claude hand you the tasks only you can do, and keeps each one in a My tasks pane until you answer it or reject it.</span></li>
+<li><a href="lessons/0026-diagram-pane.html">0026 · Diagram pane</a> <span class="kicker">plugin diagram-pane</span><br><span class="lede">Diagram pane opens a side pane that pins each diagram Claude draws, and keeps a live map of the files and steps in the work.</span></li>
+</ul>
+<h2>Tier 4 (grade 5)</h2>
+<ul class="steps">
+<li><a href="lessons/0027-decision-tree.html">0027 · Decision tree</a> <span class="kicker">plugin decision-tree</span><br><span class="lede">After Claude ends a reply with a question, this family puts the choice in a side pane and lets you explore each option in a forked session.</span></li>
+<li><a href="lessons/0028-plain-english.html">0028 · Plain English</a> <span class="kicker">plugin plain-english</span><br><span class="lede">A side pane that rewrites Claude&#x27;s long replies in plain language, with a short Next steps list, while Claude&#x27;s own reply stays exactly as it was.</span></li>
+<li><a href="lessons/0029-prismantis.html">0029 · Prismantis</a> <span class="kicker">plugin prismantis</span><br><span class="lede">This family redraws Claude Code replies in colour, with coloured tables, headings, code, numbers and links, and draws each tool call as one short line.</span></li>
+<li><a href="lessons/0030-jev-skill-router.html">0030 · Jev skill router</a> <span class="kicker">plugin jev-skill-suggestion</span><br><span class="lede">As you type, this family ranks your skills against your draft with TypeSafe&#x27;s Jev service, then decides whether Claude may load a skill at all.</span></li>
+<li><a href="lessons/0031-terminal-browser.html">0031 · Terminal browser</a> <span class="kicker">plugin terminal-browser</span><br><span class="lede">This family puts a real web browser in a side pane inside Claude Code, drawn in the terminal, so you can preview pages and let the agent drive it.</span></li>
+<li><a href="lessons/0032-today-report.html">0032 · Today&#x27;s report</a> <span class="kicker">plugin today-report</span><br><span class="lede">Today&#x27;s Report totals your Claude Code tasks, the time they would have taken you, and your tokens by day, week, month and year, from your local session logs.</span></li>
+</ul>
+<h2>Tier 5 (grade 4)</h2>
+<ul class="steps">
+<li><a href="lessons/0033-claude-skins.html">0033 · Claude Skins</a> <span class="kicker">plugin skins</span><br><span class="lede">Claude Skins redraws the Claude Code transcript, so tool calls, edits, code, tables and charts each get their own cards and colours.</span></li>
+<li><a href="lessons/0034-next-steps.html">0034 · Next steps</a> <span class="kicker">plugin next-steps</span><br><span class="lede">Next steps shows two or three likely next prompts above the prompt after each turn, and lets you press 1, 2 or 3 to draft one.</span></li>
+<li><a href="lessons/0035-repo-heatmap.html">0035 · Repo heatmap</a> <span class="kicker">plugin repo-heatmap</span><br><span class="lede">repo-heatmap opens a pane that shows how a repository&#x27;s files spread across its folders and across kinds such as code, tests, docs, design and data.</span></li>
+<li><a href="lessons/0036-design-picker.html">0036 · Design picker</a> <span class="kicker">plugin design-picker</span><br><span class="lede">When Claude asks you to choose a design style, a page opens in your browser with one styled card per option, and then the normal question appears.</span></li>
+<li><a href="lessons/0037-daily-challenge.html">0037 · Daily challenge</a> <span class="kicker">plugin daily-challenge</span><br><span class="lede">daily-challenge gives you one small Claude Code exercise each day, in a pane with a Coach me button and a streak.</span></li>
+<li><a href="lessons/0038-model-router.html">0038 · Model router</a> <span class="kicker">plugin model-router</span><br><span class="lede">A mod that picks haiku, sonnet or opus for each subagent Claude starts without naming a model, from one small Haiku call. The main chat&#x27;s model never changes.</span></li>
+<li><a href="lessons/0039-narrator.html">0039 · Narrator</a> <span class="kicker">plugin narrator</span><br><span class="lede">After each finished reply, it reads the last 240 characters aloud with the macOS say voice, once you have turned it on with /narrator on.</span></li>
+<li><a href="lessons/0040-time-lapse.html">0040 · Time-lapse</a> <span class="kicker">plugin time-lapse</span><br><span class="lede">time-lapse records your Claude Code session and replays it as an animated HTML page: the original idea was a video, but this build makes an HTML replay instead.</span></li>
+</ul>
+<h2>Tier 6 (toys)</h2>
+<ul class="steps">
+<li><a href="lessons/0041-cosmetic-mods.html">0041 · Cosmetic mods</a> <span class="kicker">plugin terminal-pet</span><br><span class="lede">terminal-pet puts a small text pet in the band above the prompt, and the pet &quot;eats&quot; the files Claude reads.</span></li>
+<li><a href="lessons/0042-games-and-waiting.html">0042 · Games and waiting</a> <span class="kicker">plugin snake</span><br><span class="lede">Games and waiting mods give you something to play or watch while Claude works.</span></li>
+<li><a href="lessons/0043-panels-and-toys.html">0043 · Panels and toys</a> <span class="kicker">plugin session-band</span><br><span class="lede">session-band puts the session at a glance in one band above the prompt: turn number, output speed, turn and session cost, a prompt cache countdown and context fill.</span></li>
+</ul>
+<h2>Workspace files</h2>
+<ul class="steps">
+<li><a href="FAMILIES.md">FAMILIES.md</a>: which lesson ships which plugin, and where it came from.</li>
+<li><a href="RESOURCES.md">RESOURCES.md</a>: the sources the lessons are built on.</li>
+<li><a href="NOTES.md">NOTES.md</a>: conventions and open questions.</li>
+</ul>
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+</main>
+</body>
+</html>

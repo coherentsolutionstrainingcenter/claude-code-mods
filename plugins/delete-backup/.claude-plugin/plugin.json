@@ -1,0 +1,9 @@
+{
+  "name": "delete-backup",
+  "version": "0.1.0",
+  "description": "Copies the files an rm is about to delete into a backup folder first, so /undo-delete can put the newest deletion back",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT"
+}

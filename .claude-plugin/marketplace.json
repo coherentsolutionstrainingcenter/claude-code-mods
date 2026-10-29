@@ -1,0 +1,485 @@
+{
+  "name": "waraxe-claude-mods",
+  "owner": {
+    "name": "Igor Waraxe"
+  },
+  "metadata": {
+    "description": "43 Claude Code mods, one per lesson, ordered by how useful they are, with a course that explains how each one is built.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "blast-radius",
+      "source": "./plugins/blast-radius",
+      "description": "Holds risky shell commands (rm -rf, git reset --hard, git clean, force push, migrations) and shows what they would change, with Proceed and Cancel buttons.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Anthropic (Claude Code DevRel)"
+      },
+      "license": "Apache-2.0",
+      "category": "tier-1"
+    },
+    {
+      "name": "delete-backup",
+      "source": "./plugins/delete-backup",
+      "description": "Copies the files an rm is about to delete into a backup folder first, so /undo-delete can put the newest deletion back",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-1"
+    },
+    {
+      "name": "reflect-mod",
+      "source": "./plugins/reflect-mod",
+      "description": "claude-reflect as a Claude Code mod: a model check on each short prompt finds reusable corrections (any language); a band above the prompt saves them to CLAUDE.md on one press",
+      "version": "3.3.0",
+      "author": {
+        "name": "Bayram Annakov"
+      },
+      "license": "MIT",
+      "category": "tier-1"
+    },
+    {
+      "name": "mod-store",
+      "source": "./plugins/mod-store",
+      "description": "/mods: browse, search and install community Claude Code mods from a pane, with what each one can access shown before you install",
+      "version": "0.1.1",
+      "author": {
+        "name": "hellosverre"
+      },
+      "license": "MIT",
+      "category": "tier-1"
+    },
+    {
+      "name": "mod-doctor",
+      "source": "./plugins/mod-doctor",
+      "description": "Mod doctor audits your installed mods with the plugin validator and flags failed checks, shared tool.call hooks and duplicate names",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-1"
+    },
+    {
+      "name": "effort-picker",
+      "source": "./plugins/effort-picker",
+      "description": "Picks the reasoning effort for each message you send, for that message only, from its words, and never switches the model",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-2"
+    },
+    {
+      "name": "assumption-check",
+      "source": "./plugins/assumption-check",
+      "description": "After a reply, lists the small guesses Claude made. Mark each Right or Wrong, and send the wrong ones back to Claude",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-2"
+    },
+    {
+      "name": "secret-box",
+      "source": "./plugins/secret-box",
+      "description": "Claude can use a secret without seeing it: a masked box saves keys to .env and gives Claude a placeholder, every key a tool prints comes back as a placeholder, and committing .env is refused",
+      "version": "0.5.3",
+      "author": {
+        "name": "Ray Amjad"
+      },
+      "license": "MIT",
+      "category": "tier-2"
+    },
+    {
+      "name": "aside",
+      "source": "./plugins/aside",
+      "description": "Read-only side chat: /aside opens a pane beside the transcript where you ask about the session so far; answers come from a tool-less fork of the session's own transcript and nothing is written back into the main thread.",
+      "version": "0.1.0",
+      "author": {
+        "name": "JayDoubleu"
+      },
+      "license": "MIT",
+      "category": "tier-2"
+    },
+    {
+      "name": "prompt-bouncer",
+      "source": "./plugins/prompt-bouncer",
+      "description": "Bounces vague prompts before Claude sees them, and suggests the project's own term",
+      "version": "0.1.2",
+      "author": {
+        "name": "Ray Amjad"
+      },
+      "license": "MIT",
+      "category": "tier-2"
+    },
+    {
+      "name": "dictation-fixer",
+      "source": "./plugins/dictation-fixer",
+      "description": "Tidies long messages that look dictated, then asks whether to send the cleaned version or the text as typed",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-2"
+    },
+    {
+      "name": "cache-tax",
+      "source": "./plugins/cache-tax",
+      "description": "A Claude Code mod that keeps the one-hour prompt cache warm during breaks and stops a cold send once with its estimated rewrite cost. Warming uses model requests and costs tokens. Requires Claude Code 2.1.287+.",
+      "version": "2.3.1",
+      "author": {
+        "name": "karanb192"
+      },
+      "license": "MIT",
+      "category": "tier-2"
+    },
+    {
+      "name": "ctx-handoff",
+      "source": "./plugins/ctx-handoff",
+      "description": "Turns what you teach Claude into project notes, catches its usual slips, keeps the cache warm while you're away, and picks long sessions back up",
+      "version": "0.8.2",
+      "author": {
+        "name": "cablate"
+      },
+      "license": "MIT",
+      "category": "tier-2"
+    },
+    {
+      "name": "replay-theater",
+      "source": "./plugins/replay-theater",
+      "description": "Replay Theater: step through the file edits Claude made in the last turn, one diff at a time.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Anthropic (Claude Code DevRel)"
+      },
+      "license": "Apache-2.0",
+      "category": "tier-2"
+    },
+    {
+      "name": "recording-mode",
+      "source": "./plugins/recording-mode",
+      "description": "/rec before you record: masks keys, personal details, and business figures on screen and keeps private files closed (/rec strict, /rec off, /rec config)",
+      "version": "1.0.0",
+      "author": {
+        "name": "Nate Herk"
+      },
+      "license": "MIT",
+      "category": "tier-2"
+    },
+    {
+      "name": "collision-guard",
+      "source": "./plugins/collision-guard",
+      "description": "Asks before Edit or Write changes a file that another chat edited in the last 30 minutes, with Proceed and Cancel",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "where-am-i",
+      "source": "./plugins/where-am-i",
+      "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
+      "version": "0.1.8",
+      "author": {
+        "name": "Hamza Zafar"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "usage-meter",
+      "source": "./plugins/usage-meter",
+      "description": "Your plan's 5-hour and 7-day usage as small bars above the prompt, with the reset countdown and the session's cost.",
+      "version": "0.1.1",
+      "author": {
+        "name": "Hamza Zafar"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "savvy-progress",
+      "source": "./plugins/savvy-progress",
+      "description": "Progress bar above the prompt for /savvy-flow, plus an agents panel (/agents-info): running, finished and planned subagents with model, task progress, context, cost and time.",
+      "version": "1.2.1",
+      "author": {
+        "name": "JohnnyVizz"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "mission-control",
+      "source": "./plugins/mission-control",
+      "description": "/mission opens a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.",
+      "version": "0.1.7",
+      "author": {
+        "name": "Hamza Zafar"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "test-fail-magnet",
+      "source": "./plugins/test-fail-magnet",
+      "description": "Keeps the failing tests from your last test run in a Failing tests pane, with Fix to send them to Claude and Dismiss to clear them",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "prompt-queue",
+      "source": "./plugins/prompt-queue",
+      "description": "A prompt typed while Claude is working is held in a stack above the prompt instead of landing in the running turn, and sent once the turn ends. Reorder the stack, edit a row in place, send one first, remove one, flush the lot. Needs function hooks (early access) and an interactive terminal.",
+      "version": "0.4.4",
+      "author": {
+        "name": "galElmalah"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "spend-guard",
+      "source": "./plugins/spend-guard",
+      "description": "Asks Proceed or Cancel, with a short checklist, before a command or MCP tool that costs money or publishes runs",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "heads-up",
+      "source": "./plugins/heads-up",
+      "description": "After a long turn, one Haiku call flags up to two things you might miss, in a band above the prompt. Off until /heads-up on",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "human-in-the-loop",
+      "source": "./plugins/human-in-the-loop",
+      "description": "Claude assigns you the tasks only you can do. They wait in a My tasks pane, counted under the prompt, until you answer or reject them, so nothing Claude needs from you gets lost in the chat.",
+      "version": "0.1.8",
+      "author": {
+        "name": "tzafrir"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "diagram-pane",
+      "source": "./plugins/diagram-pane",
+      "description": "A side pane that pins every diagram Claude draws, keeps a live map of the work, and lets you go into boxes and change them",
+      "version": "0.2.6",
+      "author": {
+        "name": "Ray Amjad"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "decision-tree",
+      "source": "./plugins/decision-tree",
+      "description": "When Claude ends a reply with a question, explains the choice in a side pane and lets you explore any option, or your own, in a real forked session",
+      "version": "0.2.3",
+      "author": {
+        "name": "Ray Amjad"
+      },
+      "license": "MIT",
+      "category": "tier-4"
+    },
+    {
+      "name": "plain-english",
+      "source": "./plugins/plain-english",
+      "description": "While on, rewrites each long reply in plain language with a short Next steps list, in a side pane, and leaves Claude's reply unchanged",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-4"
+    },
+    {
+      "name": "prismantis",
+      "source": "./plugins/prismantis",
+      "description": "Colorful, themeable rendering for Claude Code replies: tables, headings, code, numbers, paths and links.",
+      "version": "0.37.1",
+      "author": {
+        "name": "NahumLitvin"
+      },
+      "license": "MIT",
+      "category": "tier-4"
+    },
+    {
+      "name": "jev-skill-suggestion",
+      "source": "./plugins/jev-skill-suggestion",
+      "description": "Scores every skill against your prompt with TypeSafe Jev as you type; observe, block or steer skill loading",
+      "version": "0.2.1",
+      "author": {
+        "name": "Ray Amjad"
+      },
+      "license": "MIT",
+      "category": "tier-4"
+    },
+    {
+      "name": "terminal-browser",
+      "source": "./plugins/terminal-browser",
+      "description": "A browser running directly inside claude code. Preview websites, view HTML documents, and let your agent control the built in browser.",
+      "version": "0.0.2",
+      "author": {
+        "name": "Zenbu Labs"
+      },
+      "license": "MIT",
+      "category": "tier-4"
+    },
+    {
+      "name": "today-report",
+      "source": "./plugins/today-report",
+      "description": "Today's Report: totals your Claude Code tasks, the time they would have taken you, and tokens by day, week, month and year, from your session logs",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-4"
+    },
+    {
+      "name": "skins",
+      "source": "./plugins/skins",
+      "description": "Skins for Claude Code: tool rows that open onto their input and answer, highlighted code, diff, table, math, Mermaid and shell cards, links, folding, a usage band, a calm mode and fifteen themes. /skin swaps them live.",
+      "version": "0.5.15",
+      "author": {
+        "name": "hellosverre"
+      },
+      "license": "MIT",
+      "category": "tier-5"
+    },
+    {
+      "name": "next-steps",
+      "source": "./plugins/next-steps",
+      "description": "After each turn, 2 or 3 likely next prompts above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.",
+      "version": "0.3.0",
+      "author": {
+        "name": "Hamza Zafar"
+      },
+      "license": "MIT",
+      "category": "tier-5"
+    },
+    {
+      "name": "repo-heatmap",
+      "source": "./plugins/repo-heatmap",
+      "description": "A /heatmap pane that counts this repository's tracked files by top-level folder and kind, from git ls-files, as rows of colored bars",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-5"
+    },
+    {
+      "name": "design-picker",
+      "source": "./plugins/design-picker",
+      "description": "When Claude asks you to choose a design style, opens a page in your browser that shows each option as a styled card, then shows the normal question",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-5"
+    },
+    {
+      "name": "daily-challenge",
+      "source": "./plugins/daily-challenge",
+      "description": "One small Claude Code challenge each day in a /challenge pane, with Coach me, Done and Skip buttons and a streak",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-5"
+    },
+    {
+      "name": "model-router",
+      "source": "./plugins/model-router",
+      "description": "Picks haiku, sonnet or opus for each subagent Claude starts without naming a model, from one small Haiku call, and never changes the main chat's model",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-5"
+    },
+    {
+      "name": "narrator",
+      "source": "./plugins/narrator",
+      "description": "Reads the last 240 characters of each finished reply aloud with macOS say, off by default and switched with /narrator on and /narrator off",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-5"
+    },
+    {
+      "name": "time-lapse",
+      "source": "./plugins/time-lapse",
+      "description": "Time-lapse: records your session's prompts, tool calls and turn times, and replays them as an animated HTML page",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-5"
+    },
+    {
+      "name": "terminal-pet",
+      "source": "./plugins/terminal-pet",
+      "description": "A small text pet in the band above the prompt that eats the files Claude reads, with /pet on, /pet off and /pet name",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-6"
+    },
+    {
+      "name": "snake",
+      "source": "./plugins/snake",
+      "description": "Snake in a pane while Claude works, paused when it's done. Opt-in, so nothing opens until /snake.",
+      "version": "0.2.3",
+      "author": {
+        "name": "Hamza Zafar"
+      },
+      "license": "MIT",
+      "category": "tier-6"
+    },
+    {
+      "name": "session-band",
+      "source": "./plugins/session-band",
+      "description": "Band above the prompt: turn number, output speed, turn and session cost, prompt cache countdown and context fill; notifies before the cache expires.",
+      "version": "0.2.0",
+      "author": {
+        "name": "JohnnyVizz"
+      },
+      "license": "MIT",
+      "category": "tier-6"
+    }
+  ]
+}

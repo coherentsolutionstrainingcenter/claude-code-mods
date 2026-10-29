@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0024: You Should Know</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0024 · You Should Know</p>
+<h1>heads-up</h1>
+<p class="lede">heads-up is our own small You Should Know: after a long turn, one Haiku call reads the reply and the turn's tool results, and a band above the prompt shows at most two things you might miss, with a Dismiss button.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt>
+  <dd><code>heads-up</code> 0.1.0, in the waraxe-claude-mods marketplace. Off until you type <code>/heads-up on</code>.</dd>
+  <dt>Folder</dt>
+  <dd><code>plugins/heads-up</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>on('session.start', ...)</code>, <code>on('command.run', { command: 'heads-up' }, ...)</code>, <code>on('prompt.submit', ...)</code>, <code>on('turn.start', ...)</code>, <code>on('tool.call', ...)</code>, <code>on('turn.complete', ...)</code>, <code>on('ui.render', { component: 'AbovePrompt' }, ...)</code></dd>
+  <dt>Calls</dt>
+  <dd><code>$.store.get()</code>, <code>$.store.set()</code>, <code>$.command.register()</code>, <code>$.model.complete()</code>, <code>$.ui.resolve()</code>, and <code>$.state.get()</code> and <code>$.state.set()</code> through <code>read()</code> and <code>update()</code></dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>types/index.d.ts</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt>
+  <dd>Igor Waraxe, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>heads-up</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install heads-up@waraxe-claude-mods</code> · folder <a href="../../plugins/heads-up/">plugins/heads-up</a> · <a href="../../plugins/heads-up/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>You Should Know (mod 19) is a side agent built into Claude Code. It watches your back while Claude works on a longer task and shows what you might miss above the prompt. It ships inside Claude Code as <code>cc-plugin-you-should-know@builtin</code>, its code is not on disk, and so it cannot go into this marketplace. heads-up is a small version we can ship and read: when a main-loop turn ends with a long reply, it asks Haiku once about four kinds of missed fact or skipped step, and shows at most two.</p>
+<ul class="steps">
+  <li><strong>The built-in You Should Know</strong> watches while a longer task runs. Its code cannot be read here; <code>claude plugin details</code> reports no hooks and about 0 tokens added to every session. You turn it on with <code>/plugin enable cc-plugin-you-should-know@builtin</code>.</li>
+  <li><strong>heads-up</strong> looks once, after the turn ends, and only at four things: a failed tool result the reply did not mention, files changed beyond what was asked, tests not run after code changes, and a risky step taken. Every line of it is in one file.</li>
+  <li><strong>assumption-check</strong> (lesson 0007) lists the guesses Claude made in the reply: a reading of what you meant, a default, a name picked without asking. heads-up does not list guesses; its prompt tells Haiku to leave them out. It reports facts in the tool results and steps that were skipped.</li>
+</ul>
+<p>For <a href="../MISSION.md">your mission</a>, this mod shows how several events work together: a counter, a log, a model call and a band, each in its own hook, so you can name every event it uses and say why.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>19</td>
+      <td>You Should Know (<code>cc-plugin-you-should-know@builtin</code>)</td>
+      <td>A side agent that watches longer tasks and surfaces things worth knowing above the prompt.</td>
+      <td>Built in, no source on disk: <a href="https://www.youtube.com/watch?v=ERNqRK6sMJY">video</a> · <a href="../reference/mod-catalogue.html#m19">catalogue</a></td>
+    </tr>
+    <tr>
+      <td>19 (ours)</td>
+      <td>heads-up (shipped)</td>
+      <td>Built here. After a long main-loop turn, one Haiku call flags at most two missed facts or skipped steps in a band above the prompt. Off by default.</td>
+      <td><a href="../../plugins/heads-up/hooks/register.tsx">plugins/heads-up</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+
+<h3>1. Declare the values the band reads</h3>
+<p>What a drawing reads lives in <code>$.state</code>, which outlives a hot reload, unlike a module variable. The contract declares two values under the plugin's name, and <code>plugin.json</code> names the file as <code>"types"</code>. <code>claude plugin validate</code> holds every state key the module uses to this contract.</p>
+<pre><code>declare module 'claude-code' {
+  interface PluginState {
+    'heads-up': {
+      /** What the band shows: at most two short lines, [] when there is nothing to flag. */
+      flags: string[]
+      /** How many prompts the person has sent in this session. */
+      prompts: number
+    }
+  }
+}</code></pre>
+<pre><code>const flags = atom({ plugin: 'heads-up', key: 'flags' } as const, [] as string[])
+const prompts = atom({ plugin: 'heads-up', key: 'prompts' } as const, 0)</code></pre>
+
+<h3>2. Register the switch</h3>
+<p><code>session.start</code> reads the switch from <code>$.store</code>, which is kept across sessions, and registers <code>/heads-up</code>. The <code>command.run</code> hook answers the command itself, so nothing beneath it runs. A missing value is not <code>true</code>, so the mod starts off.</p>
+<pre><code>  on('session.start', async ($, e, next) =&gt; {
+    isOn = (await $.store.get('isOn')) === true
+    await $.command.register({
+      name: 'heads-up',
+      description: 'Turn heads-up on or off: up to two things you might miss after a long turn',
+      argumentHint: 'on|off',
+    })
+
+    return next(e)
+  })
+
+  on('command.run', { command: 'heads-up' }, async ($, e) =&gt; {
+    const arg = e.args.trim().toLowerCase()
+    if (arg === 'on' || arg === 'off') {
+      isOn = arg === 'on'
+      await $.store.set('isOn', isOn)
+      await update($, flags, () =&gt; [])
+    }</code></pre>
+
+<h3>3. Count the person's prompts</h3>
+<p><code>prompt.submit</code> also fires for slash commands, hidden prompts and task notifications. Only a prompt the person sent counts, and its text is kept as the request the check compares against.</p>
+<pre><code>  on('prompt.submit', async ($, e, next) =&gt; {
+    if (e.command === undefined &amp;&amp; e.isMeta !== true &amp;&amp; isPerson(e.origin)) {
+      asked = e.text
+      await update($, prompts, n =&gt; n + 1)
+    }
+
+    return next(e)
+  })</code></pre>
+
+<h3>4. Log the turn's tool calls</h3>
+<p><code>turn.complete</code> carries the reply but not the tool results, so the mod keeps its own log. <code>turn.start</code> on the main loop starts a fresh one and clears old flags. The <code>tool.call</code> hook awaits <code>next(e)</code>, which runs the tool, then records what came back. Calls inside a subagent carry <code>agentId</code> and are left out.</p>
+<pre><code>  on('tool.call', async ($, e, next) =&gt; {
+    const ran = await next(e)
+    if (isOn &amp;&amp; e.agentId === undefined &amp;&amp; steps.length &lt; MAX_STEPS) {
+      steps.push(toStep(e, ran))
+    }
+
+    return ran
+  })</code></pre>
+<pre><code>  const isFailed = ran.deny !== undefined || ran.isError === true
+  const said = ran.deny ?? ran.text ?? ''</code></pre>
+
+<h3>5. Decide whether the turn is worth a call</h3>
+<p>The hook calls <code>next(e)</code> first, so the turn ends normally whatever happens below. Then every condition from the spec is a plain check: on, main loop, ended with an answer (which leaves out an interrupted turn), a reply of 300 characters or more, past the third prompt. A turn with no tool calls has nothing in the four categories, so it skips the call too.</p>
+<pre><code>  on('turn.complete', async ($, e, next) =&gt; {
+    const done = await next(e)
+    // reason 'answer' leaves out an interrupted turn, a refusal and an API error.
+    if (!isOn || e.agentId !== undefined || e.reason !== 'answer' || e.answer.length &lt; MIN_REPLY) {
+      return done
+    }
+    if (steps.length === 0 || (await read($, prompts)) &lt;= QUIET_PROMPTS) {
+      return done
+    }</code></pre>
+
+<h3>6. Ask Haiku in the background</h3>
+<p>The model call is not awaited, so the prompt comes back at once and the band appears a few seconds later. <code>latest</code> remembers which turn asked: if a new turn started meanwhile, the old answer is dropped. <code>$.model.complete</code> never rejects over what the provider did; it resolves <code>isAnswered: false</code>, which reads as no flags.</p>
+<pre><code>    const turnId = e.turnId
+    latest = turnId
+    // In the background, so the prompt comes back at once (the approach of
+    // next-steps by Hamza Zafar, MIT, in this repository; this code is new).
+    void (async () =&gt; {
+      const found = await findFlags($, asked, e.answer, steps)
+      if (found.length &gt; 0 &amp;&amp; latest === turnId) {
+        await update($, flags, () =&gt; found)
+      }
+    })().catch(() =&gt; undefined)</code></pre>
+<p>The prompt names the four categories and keeps heads-up apart from assumption-check by telling the model to leave guesses out.</p>
+<pre><code>    'Claude just finished a turn of work. Name at most two facts the person might miss. Only these count:',
+    '- a tool call that failed, was not fixed by a later call, and the reply does not mention it',
+    '- files changed beyond what the request asked for',
+    '- code changed, and no test or build ran after the change',
+    '- a risky step taken: a force push, a hard reset, deleted files, a migration, a publish or deploy, a change outside the project',
+    'Do not list guesses or assumptions the reply made, style advice, or anything the reply already tells the person.',</code></pre>
+
+<div class="note"><strong>Why a module-level function.</strong> <code>findFlags</code> takes <code>$</code> as an argument, and the validator follows <code>$</code> only into functions declared at the top of the file. A helper declared inside <code>register</code> and handed <code>$</code> fails validation.</div>
+
+<h3>7. Draw the band with Dismiss</h3>
+<p>The render hook calls <code>next(e)</code> first, so whatever other mods draw above the prompt stays, below the flags. With no flags, or while a survey holds the band, it returns that alone. <code>read</code> subscribes the band to <code>flags</code>, so the background <code>update</code> redraws it, and the Dismiss press empties it.</p>
+<pre><code>    return (
+      &lt;Box flexDirection="column"&gt;
+        &lt;Box flexDirection="column" paddingX={1}&gt;
+          {list.map(flag =&gt; (
+            &lt;Text&gt;
+              &lt;Text color="warning" bold&gt;
+                heads-up{' '}
+              &lt;/Text&gt;
+              {flag}
+            &lt;/Text&gt;
+          ))}
+          &lt;Button key="dismiss" label="Dismiss" role="dismiss" onPress={() =&gt; update($, flags, () =&gt; [])} /&gt;
+        &lt;/Box&gt;
+        {rest}
+      &lt;/Box&gt;
+    )</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install heads-up@waraxe-claude-mods</code></pre>
+<ul class="steps">
+  <li>Type <code>/heads-up on</code> in the Claude Code prompt. It stays on in later sessions until you type <code>/heads-up off</code>. <code>/heads-up</code> alone says whether it is on.</li>
+  <li>From the fourth prompt of a session, after a reply of 300 characters or more in which Claude used a tool, the band may show one or two lines. Read them, check what they name, then press <strong>Dismiss</strong>. The band also clears when the next turn starts.</li>
+  <li>To compare with the built-in, turn that on with <code>/plugin enable cc-plugin-you-should-know@builtin</code>.</li>
+  <li>Cost: one Haiku call per checked turn, up to about 17,000 characters in (about 4,500 tokens) and at most 250 tokens out. Nothing is sent while it is off, in the first three prompts, or for a turn with no tool calls.</li>
+</ul>
+
+<h3>Limits</h3>
+<ul class="steps">
+  <li>Haiku can miss something or flag something harmless. A flag is a hint to check, not a verdict.</li>
+  <li>It sees only the main conversation's tool calls, the first 60 of a turn. Inside a subagent it sees only the Agent call and its answer.</li>
+  <li>Outputs are cut: a failure's first 300 characters, a Bash run's last 200. The request is cut at 2,000 characters and the reply at 6,000.</li>
+  <li>The prompt count starts with the session, so a resumed session counts from zero.</li>
+  <li>The band is the <code>AbovePrompt</code> site, which the types say is drawn on the terminal and the desktop app only. VS Code and mobile show nothing.</li>
+  <li>It looks once, after the turn. It cannot warn you while the work is still running, as the built-in does.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>It is the second prompt of a new session. Claude ran <code>npm test</code>, the test failed, and the 900-character reply does not say so. Does heads-up call Haiku?</summary>
+  <p>No. The prompt count is 2, and the <code>turn.complete</code> hook returns early while <code>read($, prompts)</code> is at most <code>QUIET_PROMPTS</code> (3). From the fourth prompt the same turn would be checked.</p>
+</details>
+<details class="check">
+  <summary>Which mod reports "you assumed I wanted TypeScript", and which reports "npm test failed and the reply does not say so"?</summary>
+  <p>assumption-check reports the first: it is a guess Claude made about what you meant. heads-up reports the second: it is a fact in the tool results that the reply left out. heads-up's prompt tells Haiku not to list guesses, so the two do not overlap.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li>Main source: <a href="../../plugins/heads-up/hooks/register.tsx">plugins/heads-up/hooks/register.tsx</a></li>
+  <li>API types for <code>turn.complete</code>, <code>tool.call</code>, <code>$.model.complete</code>, <code>AbovePrompt</code> and <code>PluginState</code>: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a>, entry 19</li>
+  <li>The guesses side of the same idea: <a href="0007-assumption-check.html">lesson 0007, assumption-check</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0023-spend-and-publish-guard.html">← 0023 Spend and publish guard</a>
+  <a href="../index.html">Index</a>
+  <a href="0025-human-in-the-loop.html">0025 Human in the loop →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

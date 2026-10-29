@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0007: assumption-check</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+  <p class="kicker">Lesson 0007 · assumption-check</p>
+  <h1>assumption-check</h1>
+  <p class="lede">After a substantial reply, a small Haiku model lists the guesses Claude made, and you mark each one Right or Wrong.</p>
+
+  <dl class="meta">
+    <dt>Version</dt>
+    <dd>0.1.0</dd>
+    <dt>Folder</dt>
+    <dd><code>/Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/assumption-check</code></dd>
+    <dt>Marketplace</dt>
+    <dd>waraxe-claude-mods</dd>
+    <dt>Hooks</dt>
+    <dd><code>session.start</code>, <code>command.run</code> (only <code>/assumptions</code>), <code>prompt.submit</code>, <code>turn.complete</code>, <code>ui.render</code> (only the pane <code>assumption-check</code>)</dd>
+    <dt>Calls</dt>
+    <dd><code>$.command.register()</code>, <code>$.ui.open()</code>, <code>$.ui.resolve()</code>, <code>$.model.complete()</code> (model <code>haiku</code>), <code>$.prompt.submit()</code>, <code>atom()</code>, <code>read()</code>, <code>update()</code></dd>
+    <dt>Files</dt>
+    <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>types/index.d.ts</code>, <code>README.md</code></dd>
+    <dt>Author and license</dt>
+    <dd>Igor Waraxe, MIT</dd>
+    <dt>Requires</dt>
+    <dd>Claude Code with the hooks engine, and a session that can use the <code>haiku</code> model alias. The types used here were written by Claude Code 2.1.308. The manifest sets no minimum version.</dd>
+  </dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>assumption-check</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install assumption-check@waraxe-claude-mods</code> · folder <a href="../../plugins/assumption-check/">plugins/assumption-check</a> · <a href="../../plugins/assumption-check/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+  <h2>What it is</h2>
+  <p>assumption-check reads Claude's last reply and lists up to five guesses that the reply made and you did not state, such as a default value or a file picked without asking. It checks only replies of 300 characters or more, and it asks Haiku for the list, so each check costs one small model call. You mark each guess Right or Wrong, and Send wrong to Claude submits the wrong ones as a new prompt.</p>
+  <p>It matters for your mission because it is the one place in this pair where a hook makes a model call, so you must be able to say when that call happens and what it costs.</p>
+
+  <h2>How it was built</h2>
+
+  <h3>1. Declare the state type</h3>
+  <p>The file <code>types/index.d.ts</code> adds one entry to the engine's <code>PluginState</code>. The manifest points at it with <code>"types"</code>. The entry gives the state atom its type, so the list of guesses is typed as <code>Assumption[]</code>.</p>
+  <pre><code>export type Assumption = {
+  /** The guess, in one short line. */
+  text: string
+  /** open until the person presses Right or Wrong. */
+  verdict: 'open' | 'right' | 'wrong'
+}
+
+declare module 'claude-code' {
+  interface PluginState {
+    'assumption-check': { items: Assumption[] }
+  }
+}</code></pre>
+
+  <h3>2. Set the limits and the state atom</h3>
+  <p>Two constants set the limits: a reply must be at least 300 characters, and at most five guesses are kept. The atom holds the list of guesses under the plugin name and the key <code>items</code>. It starts as an empty list.</p>
+  <pre><code>import { atom, read, update } from 'claude-code'
+import type { Register } from 'claude-code'
+
+import type { Assumption } from '../types'
+
+const PANE = 'assumption-check'
+const items = atom({ plugin: 'assumption-check', key: 'items' } as const, [] as Assumption[])
+
+// A reply shorter than this rarely carries a guess, so it skips the model call.
+const MIN_REPLY = 300
+const MAX_GUESSES = 5</code></pre>
+
+  <div class="note"><strong>Why 300 characters.</strong> The author's comment says a short reply rarely carries a guess. Skipping short replies saves a Haiku call each time. The check is <code>&lt; MIN_REPLY</code>, so a reply of exactly 300 characters is checked.</div>
+
+  <h3>3. Register the command and the pane</h3>
+  <p><code>session.start</code> adds <code>/assumptions</code> to the command list for this session. <code>command.run</code> answers that command by opening the pane. The command only opens the pane. It does not run the check.</p>
+  <pre><code>export const register: Register = on =&gt; {
+  let asked = ''
+
+  on('session.start', async ($, e, next) =&gt; {
+    await $.command.register({
+      name: 'assumptions',
+      description: 'Show the guesses Claude made in the last reply',
+    })
+
+    return next(e)
+  })
+
+  on('command.run', { command: 'assumptions' }, async $ =&gt; {
+    await $.ui.open({ id: PANE, title: 'Assumptions' })
+
+    return { text: 'Assumptions pane opened.' }
+  })</code></pre>
+
+  <h3>4. Remember the request and check the reply</h3>
+  <p><code>prompt.submit</code> stores the text of the last prompt in the plain variable <code>asked</code>, so the model can see what was asked. <code>turn.complete</code> skips subagent replies, interrupted turns and short replies. For the rest, it asks Haiku, writes the guesses into the atom, and opens the pane.</p>
+  <pre><code>  on('prompt.submit', ($, e, next) =&gt; {
+    asked = e.text
+
+    return next(e)
+  })
+
+  on('turn.complete', async ($, e, next) =&gt; {
+    if (e.agentId !== undefined || e.isAborted) {
+      return next(e)
+    }
+
+    // Each finished reply replaces the list, so guesses never carry over from an earlier reply.
+    const reply =
+      e.answer.length &lt; MIN_REPLY
+        ? undefined
+        : await $.model
+            .complete({ model: 'haiku', prompt: guessPrompt(asked, e.answer), maxTokens: 300, timeoutMs: 20000 })
+            .catch(() =&gt; undefined)
+    const found = reply?.isAnswered ? parseGuesses(reply.text) : []
+
+    await update($, items, () =&gt; found.map(text =&gt; ({ text, verdict: 'open' as const })))
+    if (found.length &gt; 0) {
+      void $.ui.open({ id: PANE, title: 'Assumptions' })
+    }
+
+    return next(e)
+  })</code></pre>
+
+  <div class="note"><strong>Why the hook waits.</strong> It awaits the model call before it calls <code>next(e)</code>, so the hooks beneath it wait too, for up to 20 seconds. The types say a hook's own-code budget does not count a model call, so the wait does not break that budget. The pane is opened with <code>void</code>, so the chain does not wait for it to draw.</div>
+
+  <h3>5. Ask for a JSON list and read the answer safely</h3>
+  <p><code>guessPrompt</code> builds the prompt from the last request and the reply, each cut to a length cap. <code>parseGuesses</code> takes the first array-like text in the answer, keeps only non-empty strings, and returns an empty list on any error.</p>
+  <pre><code>// The request and the reply are data here: the model only lists guesses.
+function guessPrompt(asked: string, reply: string): string {
+  return [
+    'A person asked Claude something, and Claude replied. List up to five guesses the reply made that the person did not state: a reading of what they meant, a default value, or a file or name picked without asking.',
+    'Answer with only a JSON array of short strings, each under 15 words. Answer [] when there are none.',
+    '',
+    `Request: ${asked.slice(0, 2000)}`,
+    `Reply: ${reply.slice(0, 8000)}`,
+  ].join('\n')
+}
+
+function parseGuesses(text: string): string[] {
+  const json = text.match(/\[[\s\S]*\]/)?.[0] ?? '[]'
+
+  try {
+    const list: unknown = JSON.parse(json)
+    if (!Array.isArray(list)) {
+      return []
+    }
+
+    return list
+      .filter((g): g is string =&gt; typeof g === 'string' &amp;&amp; g.trim() !== '')
+      .slice(0, MAX_GUESSES)
+  } catch {
+    return []
+  }
+}</code></pre>
+
+  <div class="note"><strong>Why it fails open.</strong> The <code>.catch</code> in step 4 turns a rejected model call into <code>undefined</code>. A reply that is not JSON becomes an empty list. In both cases no guesses show, and the reply itself is not held or changed. The types say <code>$.model.complete</code> rejects only when the engine refuses the request, such as a blocked model.</div>
+
+  <h3>6. Draw the pane</h3>
+  <p>The render hook reads the list with <code>read()</code>. A read inside a render hook subscribes that drawing, so each <code>update()</code> redraws the pane without a separate call. With no guesses, the pane shows one line of text.</p>
+  <pre><code>  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) =&gt; {
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const list = await read($, items)
+
+    if (list.length === 0) {
+      return (
+        &lt;Box&gt;
+          &lt;Text dimColor&gt;No guesses in the last reply.&lt;/Text&gt;
+        &lt;/Box&gt;
+      )
+    }</code></pre>
+
+  <h3>7. Send the wrong ones back</h3>
+  <p>When at least one guess is marked Wrong, a button appears. It submits the wrong guesses as a new prompt, then clears the list. The new reply gets its own check, because the same <code>turn.complete</code> hook runs again.</p>
+  <pre><code>        {wrong.length &gt; 0 &amp;&amp; (
+          &lt;Button
+            key="send"
+            label={`Send ${wrong.length} wrong to Claude`}
+            onPress={() =&gt; {
+              void $.prompt.submit({
+                text: `These guesses in your last reply were wrong. Redo the affected part without them:\n${wrong.map(a =&gt; `- ${a.text}`).join('\n')}`,
+              })
+              void update($, items, () =&gt; [])
+            }}
+          /&gt;
+        )}</code></pre>
+
+  <h2>How to use it</h2>
+  <pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+claude plugin install assumption-check@waraxe-claude-mods</code></pre>
+  <p>The placeholder <code>&lt;owner&gt;/&lt;repo&gt;</code> is not filled in yet, for the same reason as in lesson 0016. The README and the code agree on the main rule. Two differences are small: the README leaves out the skips for subagent and interrupted turns, and it calls the button "Send wrong to Claude", while the button adds the count.</p>
+
+  <ul class="steps">
+    <li>Run <code>/reload-plugins</code>, or start a new session.</li>
+    <li>Run <code>/assumptions</code> to open the pane at any time. It shows the guesses from the last checked reply.</li>
+    <li>Press <strong>Right</strong> or <strong>Wrong</strong> on each guess.</li>
+    <li>Press <strong>Send N wrong to Claude</strong> to submit the wrong guesses as a new prompt.</li>
+    <li>Cost: one Haiku call for each reply that is 300 characters or more, is not from a subagent, and was not interrupted. The call can use up to 300 output tokens and stops after 20 seconds. Other replies make no call.</li>
+  </ul>
+
+  <h3>Limits</h3>
+  <div class="note"><strong>A bug we fixed.</strong> Earlier versions wrote to the list only when a reply had guesses, so an old list could stay on screen after a reply with none. Each finished reply now replaces the list, even when it is empty. The fix is found by reading the code. The mod has not been run.</div>
+  <ul class="steps">
+    <li>The model sees only your last prompt and the reply. It does not see earlier turns, so a guess that depends on earlier context may look wrong.</li>
+    <li>A guess is the model's view of the reply. It can miss a real guess or list one that is fine. Treat the list as a prompt to look, not as proof.</li>
+    <li>If the model call fails or times out, no guesses appear and no message is shown.</li>
+    <li>The list is session state, not stored data. The types say that state is held for the session, so a new session does not show the old list.</li>
+  </ul>
+
+  <h2>Check yourself</h2>
+
+  <details class="check">
+    <summary>Why does the hook skip replies under 300 characters?</summary>
+    <p>The author's comment says a short reply rarely carries a guess. Skipping it saves a Haiku call. The test is <code>e.answer.length &lt; MIN_REPLY</code>, so a reply of exactly 300 characters is checked.</p>
+  </details>
+
+  <details class="check">
+    <summary>The Haiku call fails. What does the user see?</summary>
+    <p>The <code>.catch(() =&gt; undefined)</code> turns the rejection into <code>undefined</code>, so no guesses are found. The hook then leaves the list as it was and does not open the pane. The reply is unaffected, and nothing shows the failure.</p>
+  </details>
+
+  <details class="check">
+    <summary>What makes the pane redraw after you press Right or Wrong?</summary>
+    <p>The render hook called <code>read()</code> on the atom while it drew. The types say that read subscribes the drawing. Each button press calls <code>update()</code>, which writes the atom, and the pane draws again. The button handlers never call a redraw themselves.</p>
+  </details>
+
+  <h2>Go further</h2>
+  <ul>
+    <li>Main source: <a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/assumption-check/hooks/register.tsx">/Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/assumption-check/hooks/register.tsx</a></li>
+    <li>API types for <code>session.start</code>, <code>command.run</code>, <code>prompt.submit</code>, <code>turn.complete</code>, <code>ui.render</code>, <code>$.model.complete</code>, <code>atom</code>, <code>read</code> and <code>update</code>: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a></li>
+    <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  </ul>
+
+  <nav class="lesson-nav">
+  <a href="0006-effort-picker.html">← 0006 Effort picker</a>
+  <a href="../index.html">Index</a>
+  <a href="0008-secret-handling.html">0008 Secret handling →</a>
+</nav>
+
+  <p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

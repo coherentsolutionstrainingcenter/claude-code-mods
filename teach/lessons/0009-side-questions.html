@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0009: Side questions</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0009 · Family</p>
+<h1>Side questions</h1>
+<p class="lede">A read-only side chat, opened with <code>/aside</code>, that answers questions about the session so far without writing anything back into the main conversation.</p>
+
+<dl class="meta">
+  <dt>Best version</dt>
+  <dd><a href="https://github.com/JayDoubleu/aside">Aside (34), JayDoubleu</a></dd>
+  <dt>Status</dt>
+  <dd>Installed on this Mac, according to <code>FAMILIES.md</code>. The source read for this page is a clone of <a href="https://github.com/JayDoubleu/aside">JayDoubleu/aside</a>.</dd>
+  <dt>Variants</dt>
+  <dd>34 (best). <code>FAMILIES.md</code> lists no other variants.</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.ts</code>, <code>tests/register.test.ts</code>, <code>tests/harness.ts</code>, <code>README.md</code>, <code>docs/investigation/</code></dd>
+  <dt>Author and license</dt>
+  <dd>JayDoubleu, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>aside</code> 0.1.0, by JayDoubleu, MIT · upstream <a href="https://github.com/JayDoubleu/aside">https://github.com/JayDoubleu/aside</a>.<br>Install: <code>claude plugin install aside@waraxe-claude-mods</code> · folder <a href="../../plugins/aside/">plugins/aside</a> · <a href="../../plugins/aside/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Aside adds <code>/aside</code>, which opens a pane beside the transcript. You ask a question about the session so far, and a tool-less fork of the session's own transcript answers it. The side chat cannot call tools, edit files or submit prompts, and nothing from it goes back into the main thread.</p>
+<p>This matters for your mission because it is the clearest example in this set of a mod that is read-only by design. Its validator output lists every hook and call it makes, so you can check that claim yourself.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>34</td><td>Aside (best)</td><td>A read-only <code>/aside</code> pane. Each question is a fork of the transcript, and nothing is written back to the main thread.</td><td>Installed, per <code>FAMILIES.md</code>. Source: <a href="https://github.com/JayDoubleu/aside">GitHub, JayDoubleu/aside</a></td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The module is one file, <code>hooks/register.ts</code>, of about 260 lines. It uses no JSX. The pane is drawn with <code>Box</code>, <code>Text</code>, <code>Input</code> and <code>Button</code> calls. The module is also small in what it touches. The README copies the list that <code>claude plugin validate --strict</code> prints for it: <code>$.clock.now</code>, <code>$.command.register</code>, <code>$.model.complete</code>, <code>$.model.fork</code>, <code>$.session.messages</code>, <code>$.ui.close</code>, <code>$.ui.invalidate</code>, <code>$.ui.open</code> and <code>$.ui.resolve</code>. There is no <code>$.fs</code>, <code>$.process</code>, <code>$.http</code>, <code>$.store</code>, <code>$.tool</code> or <code>$.prompt</code>.</p>
+
+<h3>1. Keep a small host object, and register the command</h3>
+<p><code>session.start</code> builds a <code>host</code> object. It wraps each engine call that the module needs, so the rest of the file only calls <code>host.fork</code>, <code>host.complete</code> and so on. The <code>/aside</code> command is registered with <code>immediate: true</code>. The engine's type notes say this flag lets a command run mid-turn.</p>
+<pre><code>  on('session.start', async ($, e, next) =&gt; {
+    host = {
+      fork: prompt =&gt; $.model.fork({ prompt }),
+      messages: () =&gt; $.session.messages(),
+      complete: prompt =&gt; $.model.complete({ model: liveModel, maxTokens: 400, system: LIVE_SYSTEM, prompt }),
+      invalidate: () =&gt; $.ui.invalidate('ui.render'),
+      open: () =&gt; $.ui.open({ id: PANE_ID, title: 'aside', focus: true }),
+      close: () =&gt; $.ui.close({ id: PANE_ID }),
+      now: () =&gt; $.clock.now(),
+    }
+    await $.command.register({
+      name: 'aside',
+      description: 'Read-only side chat about this session (opens a pane; Tab focuses its input)',
+      argumentHint: '[question]',
+      immediate: true,
+    })
+    return next(e)
+  })</code></pre>
+
+<h3>2. Ask a fork of the transcript</h3>
+<p><code>run</code> sends the question to <code>$.model.fork</code>. A fork replays the session's own transcript, so the prompt cache is shared with the main thread. The answer is stored with its usage: how many tokens were read from the cache, how many were new, and how many came out. If there is no snapshot yet, <code>run</code> falls back to the live path in step 3.</p>
+<pre><code>  function run(h: Host, entry: Exchange): void {
+    inFlight += 1
+    void h
+      .fork(promptOf(entry.q))
+      .then(async r =&gt; {
+        if (r !== null) {
+          entry.a = clip(r.text)
+          entry.kind = 'fork'
+          entry.note = `read ${r.usage.cache_read_input_tokens} · new ${r.usage.input_tokens + r.usage.cache_creation_input_tokens} · out ${r.usage.output_tokens}`
+          return
+        }
+        if (liveFallback) {
+          await answerLive(h, entry)
+          return
+        }
+        entry.queued = true
+        queued.push(entry)
+      })
+      .catch((err: unknown) =&gt; {
+        entry.a = `(no answer: ${err instanceof Error ? err.message : String(err)})`
+      })
+      .then(() =&gt; {
+        if (entry.a !== null) entry.ms = h.now() - entry.askedAt
+        inFlight -= 1
+        h.invalidate()
+      })
+  }</code></pre>
+
+<h3>3. Answer from the transcript text when no turn has finished</h3>
+<p>A fork needs a completed turn to fork from. Until the first turn ends there is no snapshot. The code expects <code>$.model.fork</code> to return <code>null</code> then, and when that happens with <code>liveFallback</code> on, <code>answerLive</code> sends the transcript text through <code>$.model.complete</code> instead. That call is not cached, and the transcript is cut to its last 60,000 characters. The answer is marked <code>live</code> in the pane.</p>
+<div class="warn">
+<strong>Check this on a newer engine. The return value has changed.</strong>
+<p>The README says the mod was tested on 2.1.270. The engine types in this workspace (build 2.1.308) say <code>$.model.fork</code> never returns <code>null</code>. It returns <code>{ isAnswered: false, reason: 'nothing-to-fork' }</code> instead. Read against those types, the <code>r !== null</code> check in <code>run</code> is always true. Then <code>r.text</code> is undefined, <code>clip</code> throws on it, and the question shows "(no answer: …)" instead of falling back to the live path. This is a reading of the code and the types, not a test run, so confirm it in a session before you rely on the first-turn fallback.</p>
+</div>
+<pre><code>  async function answerLive(h: Host, entry: Exchange): Promise&lt;void&gt; {
+    const messages = await h.messages()
+    if (messages.length === 0) {
+      entry.a = '(nothing to ask about yet: the transcript is empty)'
+      return
+    }
+    let rendered = messages.map(m =&gt; `${m.role.toUpperCase()}: ${m.text}`).join('\n\n')
+    if (rendered.length &gt; LIVE_TRANSCRIPT_CHARS) rendered = `…${rendered.slice(-LIVE_TRANSCRIPT_CHARS)}`
+    const text = await h.complete(`Transcript so far:\n\n${rendered}\n\n${promptOf(entry.q)}`)
+    entry.a = clip(text)
+    entry.kind = 'live'
+    entry.note = `${rendered.length} chars of transcript sent uncached`
+  }</code></pre>
+
+<h3>4. Put the side chat's own history into each prompt</h3>
+<p>A fork takes exactly one user message. So <code>promptOf</code> writes the last few side exchanges into the prompt, as <code>Q:</code> and <code>A:</code> pairs, and then adds the new question. The number of pairs comes from the <code>maxHistory</code> option, which defaults to 8.</p>
+<pre><code>  const promptOf = (question: string): string =&gt; {
+    const prior = history
+      .filter(x =&gt; x.a !== null &amp;&amp; x.kind !== undefined)
+      .slice(-maxHistory)
+      .map(x =&gt; `Q: ${x.q}\nA: ${x.a}`)
+      .join('\n\n')
+    return [
+      'This is a read-only side question about the conversation above. Answer from the transcript so far.',
+      'Do not use tools, do not propose edits, do not continue the main task; answer briefly in plain prose.',
+      prior === '' ? '' : `Earlier side questions and their answers:\n\n${prior}`,
+      `Side question: ${question}`,
+    ]
+      .filter(part =&gt; part !== '')
+      .join('\n\n')
+  }</code></pre>
+
+<h3>5. Draw each exchange with function calls</h3>
+<p>The <code>ui.render</code> hook draws one block for each question. The block shows the question, then "thinking…" or "waiting for this turn to end…", then the answer. The footer shows where the answer came from and how long it took. This excerpt is the part that draws a row.</p>
+<pre><code>    const rows = shown.map((x, i) =&gt;
+      Box({
+        key: `x${i}`,
+        flexDirection: 'column',
+        marginTop: i === 0 ? 0 : 1,
+        width,
+        children: [
+          Text({ bold: true, color: 'cyan', wrap: 'wrap', children: `you: ${x.q}` }),
+          x.a === null
+            ? Text({ dimColor: true, children: x.queued ? 'aside: waiting for this turn to end…' : 'aside: thinking…' })
+            : Text({ wrap: 'wrap', children: `aside: ${x.a}` }),
+          x.a !== null &amp;&amp; x.ms !== undefined
+            ? Text({ dimColor: true, children: `${x.kind ?? 'error'} · ${x.ms} ms${x.note ? ` · ${x.note}` : ''}` })
+            : null,
+        ],
+      }),
+    )</code></pre>
+
+<h3>6. Take the input and the presses in hooks, not in closures</h3>
+<p>The pane's input and buttons send their events to hooks. A closure in a drawing lives only for that drawing. If a submit arrives while the pane is being redrawn, the closure can be lost. The hook still gets the event and its value. So the question goes to <code>ask</code> from the <code>ui.input</code> hook, and <strong>Clear</strong> and <strong>Close</strong> are handled in <code>ui.press</code>.</p>
+<pre><code>  // The pane's events are answered here rather than in the element closures:
+  // a closure handle belongs to one drawing, and a submit that lands during a
+  // redraw is dropped by core ("no handler is held under handle N"), while the
+  // hook still sees the event and its value.
+  on('ui.input', { plugin: 'aside', element: 'q' }, ($, e, next) =&gt; {
+    if (e.kind !== 'submit') return next(e)
+    ask(e.value)
+    return { element: e.element, value: e.value }
+  })
+
+  on('ui.press', { plugin: 'aside' }, ($, e, next) =&gt; {
+    if (e.element === 'clear') {
+      history = []
+      host?.invalidate()
+      return { element: e.element }
+    }
+    if (e.element === 'close') {
+      void host?.close()
+      return { element: e.element }
+    }
+    return next(e)
+  })</code></pre>
+
+<div class="warn">
+<strong>Function hooks are early access.</strong>
+<p>The README says the module needs Claude Code 2.1.270 or newer, with <code>CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1</code> set. Without that variable the module is not loaded and <code>/aside</code> does not exist. The README also says the API changes between releases, and the module was tested only against 2.1.270.</p>
+</div>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add JayDoubleu/aside
+claude plugin install aside@aside</code></pre>
+<p>The marketplace is named <code>aside</code>. Set <code>CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1</code> in the environment before you start Claude Code. The README also shows a checkout install, <code>CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir ./aside</code>.</p>
+
+<ul class="steps">
+  <li>Type <code>/aside</code> to open the pane. Type <code>/aside what has changed so far?</code> to open it and ask at once.</li>
+  <li>Press Tab to move into the pane's input. Type a question and press Enter.</li>
+  <li>Press Esc to give the keys back to the composer. Press ctrl+x then tab to focus the pane again, and ctrl+x then x to close it.</li>
+  <li>Read the footer under each answer. For example, <code>fork · 1244 ms · read 72848 · new 242 · out 100</code> says it was a fork, how long it took and what it cost.</li>
+  <li>Press <strong>Clear</strong> to empty the side chat. Press <strong>Close</strong> to close the pane.</li>
+</ul>
+
+<p><strong>Cost.</strong> A fork costs one prompt-cache read of the whole session prefix, plus a few new tokens. The README measured 72,848 cache-read tokens on a 73k-token session, about $0.008 on Haiku, and more on the session's own model. Right after <code>/compact</code>, the summary goes in uncached, at about 3k tokens. A live answer sends the transcript text to <code>liveModel</code> as new input.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>A question answers from the last completed turn. If you ask while a turn is running, the answer does not include that turn.</li>
+  <li>Each answer is cut to 1,200 characters. Only the last <code>maxHistory</code> side exchanges (8 by default) are sent with a new question.</li>
+  <li>The mod cannot read files or run commands. It answers from the transcript only, so it cannot check the working tree.</li>
+  <li>The pane docks beside the transcript at 110 columns or wider. A narrower terminal opens it inline above the prompt.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>How can you check, without trusting the README, that the mod cannot read files or reach the network?</summary>
+  <p>Run <code>claude plugin validate . --strict</code> in the plugin folder. It prints the hooks and calls the module makes, and the README's copy of that list has no <code>fs</code>, <code>process</code>, <code>http</code>, <code>store</code>, <code>tool</code> or <code>prompt</code> verbs. You can also search <code>hooks/register.ts</code> for <code>$.fs</code>, <code>$.process</code> or <code>$.http</code>. The search finds nothing.</p>
+</details>
+<details class="check">
+  <summary>Why does the <code>/aside</code> command return <code>{}</code>, and not a text message?</summary>
+  <p>A <code>{ text }</code> answer would become a message in the main transcript, and the model would read it. Returning <code>{}</code> opens the pane and asks the question, but leaves the main thread with nothing new. The pane shows the answer instead.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/JayDoubleu/aside">The project on GitHub</a></li>
+  <li><a href="https://github.com/JayDoubleu/aside/blob/main/hooks/register.ts">The mod's source: hooks/register.ts</a> (in the session clone)</li>
+  <li><a href="https://github.com/JayDoubleu/aside/blob/main/docs/investigation/FINDINGS.md">The author's measurements: docs/investigation/FINDINGS.md</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: <code>ui.input</code>, <code>ui.press</code>, <code>model.fork</code></a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0008-secret-handling.html">← 0008 Secret handling</a>
+  <a href="../index.html">Index</a>
+  <a href="0010-prompt-shaping.html">0010 Prompt shaping →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

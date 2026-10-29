@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0039: narrator</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0039 · Mod</p>
+<h1>narrator</h1>
+<p class="lede">After each finished reply, it reads the last 240 characters aloud with the macOS <code>say</code> voice, once you have turned it on with <code>/narrator on</code>.</p>
+
+<dl class="meta">
+  <dt>Version</dt>
+  <dd>0.1.0</dd>
+  <dt>Folder</dt>
+  <dd><code>/Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/narrator</code></dd>
+  <dt>Marketplace</dt>
+  <dd>waraxe-claude-mods</dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code>, <code>command.run</code> (matched to <code>narrator</code>), <code>turn.complete</code></dd>
+  <dt>Calls</dt>
+  <dd><code>$.command.register</code> (the <code>/narrator</code> command), <code>$.store.get</code> and <code>$.store.set</code> (the on/off flag), <code>$.process.run</code> (runs <code>say</code>), <code>$.ui.toast</code> (once, if <code>say</code> fails)</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.ts</code>, <code>README.md</code></dd>
+  <dt>Author and license</dt>
+  <dd>Igor Waraxe, MIT</dd>
+  <dt>Requires</dt>
+  <dd>macOS, for <code>say</code>, and Claude Code with mod support. Elsewhere the mod loads but shows one toast when it tries to speak.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>narrator</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install narrator@waraxe-claude-mods</code> · folder <a href="../../plugins/narrator/">plugins/narrator</a> · <a href="../../plugins/narrator/INSTRUCTIONS.md">instructions</a><br>Needs: macOS (say).</div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Narrator adds a <code>/narrator</code> command with three arguments: <code>on</code>, <code>off</code> and <code>status</code>. When a reply finishes and narrator is on, it takes the reply's final text, strips the Markdown, keeps the last 240 characters, and starts macOS <code>say</code>. It does not wait for <code>say</code> to finish, and it makes no model calls.</p>
+<p>This matters for your mission because it is the smaller of the two mods and uses no model call, so it is a clear first example of a hook that reacts to the end of a turn and starts an outside program.</p>
+
+<h2>How it was built</h2>
+<p>The mod is one file, <code>hooks/register.ts</code>, and it uses three hooks. <code>session.start</code> registers the command. <code>command.run</code> handles its arguments. <code>turn.complete</code> reads the reply.</p>
+
+<h3>1. Register the command when the session starts</h3>
+<p>The hook runs once per session. It declares <code>/narrator</code> to the command menu with a short description and an argument hint, then passes the event on.</p>
+<pre><code>export const register: Register = on =&gt; {
+  on('session.start', async ($, e, next) =&gt; {
+    await $.command.register({
+      name: 'narrator',
+      description: 'Read the end of each finished reply aloud (off by default)',
+      argumentHint: 'on | off | status',
+    })
+
+    return next(e)
+  })</code></pre>
+
+<h3>2. Handle on, off and status</h3>
+<p>The matcher <code>{ command: 'narrator' }</code> limits this hook to the narrator command. The argument is trimmed. <code>on</code> and <code>off</code> write the flag to the mod's store. Any other argument prints the current state, so an unknown argument does not fail.</p>
+<pre><code>  on('command.run', { command: 'narrator' }, async ($, e) =&gt; {
+    const arg = e.args.trim()
+    if (arg === 'on' || arg === 'off') {
+      await $.store.set('enabled', arg === 'on')
+      return { text: `Narrator is ${arg}.` }
+    }
+
+    const state = (await $.store.get('enabled')) === true ? 'on' : 'off'
+    return { text: `Narrator is ${state}. Use /narrator on, /narrator off or /narrator status.` }
+  })</code></pre>
+<div class="note">The flag lives in the mod's own store. The engine's type notes say that store is kept between sessions. So <code>/narrator on</code> stays in effect after you restart Claude Code.</div>
+
+<h3>3. Read the final reply when the turn ends</h3>
+<p><code>turn.complete</code> fires when a turn ends. <code>e.answer</code> is the final visible text. The hook skips subagent replies (<code>e.agentId</code> is set), interrupted turns (<code>e.isAborted</code>), and any turn while the flag is off. It then cleans the text and keeps its tail.</p>
+<pre><code>  on('turn.complete', async ($, e, next) =&gt; {
+    // Subagent replies, interrupted turns and replies with no words are not read.
+    if (e.agentId !== undefined || e.isAborted || (await $.store.get('enabled')) !== true) {
+      return next(e)
+    }
+
+    const words = tail(speakable(e.answer))
+    if (words !== '') {
+      speak($, words)
+    }
+
+    return next(e)
+  })</code></pre>
+
+<h3>4. Start say and do not wait for it</h3>
+<p><code>speak</code> starts <code>say</code> with the words as one argument. The <code>--</code> ends option parsing, so a reply that starts with a dash is still read. The <code>void</code> and the missing <code>await</code> mean the hook returns at once. Failures are handled later, in <code>.then</code> and <code>.catch</code>.</p>
+<pre><code>/** Starts say without waiting: the turn goes on while the voice reads. */
+function speak($: EngineInterface, words: string): void {
+  // Two minutes: a long enough read that the default 30 s never cuts speech short.
+  void $.process
+    .run(['say', '--', words], { timeoutMs: 120000 })
+    .then(run =&gt; {
+      if (run.exitCode !== 0) {
+        warn($)
+      }
+    })
+    .catch(() =&gt; warn($))
+}</code></pre>
+<div class="note">The missing <code>await</code> is deliberate. The turn does not wait for the voice, so a reply that ends while the last one is still being read starts a second voice. The source does not queue them. The <code>warned</code> flag makes the failure toast appear once per loaded copy of the mod, not once per reply.</div>
+
+<h3>5. Turn Markdown into words</h3>
+<p>Each <code>replace</code> removes one kind of Markdown. Fenced code blocks become a space, so they are not read. For a link, the link text stays and the URL goes. Backticks go, but the text inside them stays.</p>
+<pre><code>/** The words of a Markdown reply: code, links, URLs and marks go, the text stays. */
+function speakable(markdown: string): string {
+  return markdown
+    .replace(/```[\s\S]*?(```|$)/g, ' ')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1')
+    .replace(/^ *\[[^\]]+\]:.*$/gm, '')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/&lt;\/?[a-zA-Z][^&gt;]*&gt;/g, ' ')
+    .replace(/`+/g, '')
+    .replace(/^[ \t|:-]{3,}$/gm, ' ')
+    .replace(/^[ \t]{0,3}#{1,6}[ \t]+/gm, '')
+    .replace(/^[ \t]*&gt;+[ \t]?/gm, '')
+    .replace(/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/gm, '')
+    .replace(/\*+|~~/g, '')
+    .replace(/(^|\s)_+|_+(?=\s|$)/g, '$1')
+    .replace(/\|/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}</code></pre>
+
+<h3>6. Keep the last 240 characters, from a whole word</h3>
+<p><code>Array.from</code> splits the text by code point, so an emoji counts as one character. The function keeps the last 240 characters, then drops everything up to the first space, so the read starts at a word. If those characters hold no space, the whole cut is read, even a partial word.</p>
+<pre><code>/** The last characters of the words, from the first whole word: the part read aloud. */
+function tail(words: string): string {
+  const chars = Array.from(words)
+  if (chars.length &lt;= SPOKEN_CHARS) {
+    return words
+  }
+
+  // The cut can start mid-word: drop that partial word.
+  const cut = chars.slice(-SPOKEN_CHARS)
+  const space = cut.indexOf(' ')
+
+  return (space === -1 ? cut : cut.slice(space + 1)).join('').trim()
+}</code></pre>
+
+<div class="warn">
+<strong>Where the README and the source differ.</strong>
+<ul>
+  <li>The README says links are left out. The source keeps the link text and removes only the URL. Inline code keeps its text as well.</li>
+  <li>The README says that outside macOS one toast says <code>say</code> is missing. The source has no platform check. It shows its toast whenever <code>say</code> cannot start or exits with an error. The text is "Narrator could not run macOS say, so replies are not read aloud here."</li>
+  <li>The README says narrator is off until you turn it on. That is true at first, but the flag is kept between sessions, so once it is on it stays on after a restart. The README does not say so.</li>
+  <li>The README says a long reply may be read from its second or later sentence. The code cuts at a space, not at a sentence, so a read can start in the middle of a sentence.</li>
+</ul>
+</div>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+claude plugin install narrator@waraxe-claude-mods</code></pre>
+<p>Replace <code>&lt;owner&gt;/&lt;repo&gt;</code> with the GitHub repository once it is published. The local marketplace folder has no git remote yet, and the root README uses the same placeholder.</p>
+
+<ul class="steps">
+  <li>Type <code>/narrator on</code>. Narrator confirms that it is on.</li>
+  <li>Type <code>/narrator status</code> at any time to see the state.</li>
+  <li>Ask a question. When the reply finishes, its last part is read aloud.</li>
+  <li>Type <code>/narrator off</code> to stop. This stops the next reply. Speech that has already started keeps going, because the mod never stops the <code>say</code> process.</li>
+</ul>
+
+<p><strong>Cost.</strong> Narrator makes no model calls. The only cost is the local voice.</p>
+
+<p><strong>Limits.</strong></p>
+<ul>
+  <li>In practice it works on macOS only. Elsewhere, the first failed attempt shows one toast, and nothing else changes.</li>
+  <li>Only the last 240 characters of a reply are read. Prompts and tool output are never read. Subagent replies and interrupted turns are skipped.</li>
+  <li>A reply that is only code is not read, because code blocks are left out.</li>
+  <li>Replies can overlap, as described in step 4.</li>
+  <li>The on or off setting is kept between sessions.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does <code>turn.complete</code> call <code>speak</code> with <code>void</code> and no <code>await</code>?</summary>
+  <p>The hook returns <code>next(e)</code> at once, so the turn does not wait for the voice to finish reading. Errors are handled afterwards, in <code>.then</code> and <code>.catch</code>, when <code>say</code> exits or fails to start.</p>
+</details>
+<details class="check">
+  <summary>Which replies are never spoken, and which check skips each one?</summary>
+  <p>Subagent replies are skipped by <code>e.agentId !== undefined</code>. Interrupted turns are skipped by <code>e.isAborted</code>. A reply with no words after cleaning is skipped because <code>words !== ''</code> is false. A turn is also skipped when the flag is off.</p>
+</details>
+<details class="check">
+  <summary>Where is the on or off setting kept, and why does it survive a restart?</summary>
+  <p>It is kept in the mod's own store under the key <code>enabled</code>. The engine's type notes say that store is kept between sessions and hot reloads, so the setting survives a restart.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="file:///Users/igorwaraxe/Downloads/waraxe-claude-mods/plugins/narrator/hooks/register.ts">The mod's source: hooks/register.ts</a></li>
+  <li><a href="../reference/engine/types/claude-code.d.ts">The engine's API types: <code>session.start</code>, <code>command.run</code>, <code>turn.complete</code>, <code>process.run</code>, <code>store</code></a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0038-model-router.html">← 0038 Model router</a>
+  <a href="../index.html">Index</a>
+  <a href="0040-time-lapse.html">0040 Time-lapse →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

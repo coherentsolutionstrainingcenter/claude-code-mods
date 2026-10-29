@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0029: Prismantis</title>
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0029 · Family</p>
+<h1>Prismantis</h1>
+<p class="lede">This family redraws Claude Code replies in colour, with coloured tables, headings, code, numbers and links, and draws each tool call as one short line.</p>
+
+<dl class="meta">
+  <dt>Best version</dt>
+  <dd>prismantis 0.37.1 by Nahum Litvin, from <a href="https://github.com/NahumLitvin/prismantis">NahumLitvin/prismantis</a></dd>
+  <dt>Status</dt>
+  <dd>Cloned. I read the clone in the scratchpad, at <code>families/prismantis</code>, commit <code>525dd40</code>.</dd>
+  <dt>Variants</dt>
+  <dd>24</dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>.claude-plugin/marketplace.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code> (856 lines; I read lines 1 to 60 and 600 to 856), <code>types/index.d.ts</code>, <code>README.md</code>. The drawing code in <code>hooks/render.tsx</code> (about 140 KB) is not covered here.</dd>
+  <dt>Author and license</dt>
+  <dd>Nahum Litvin, MIT</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>prismantis</code> 0.37.1, by NahumLitvin, MIT · upstream <a href="https://github.com/NahumLitvin/prismantis">https://github.com/NahumLitvin/prismantis</a>.<br>Install: <code>claude plugin install prismantis@waraxe-claude-mods</code> · folder <a href="../../plugins/prismantis/">plugins/prismantis</a> · <a href="../../plugins/prismantis/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>Prismantis is one mod with a hook module of 856 lines. It registers its own drawing for assistant replies, user prompts, tool rows and command output. When it has nothing to draw, it passes the event on with <code>next(e)</code>, so Claude Code's own drawing or another mod can take over.</p>
+<p>It matters for your mission because it uses ten different event names and also exposes an API to other mods, which is the case you must explain when you list a mod's hooks and calls.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td>24</td><td>prismantis</td><td>Colours replies, tables, code, numbers, paths and links in one of its themes, and draws tool rows as one line.</td><td>Cloned: <a href="https://github.com/NahumLitvin/prismantis/tree/main">scratchpad clone</a>, or <a href="https://github.com/NahumLitvin/prismantis">GitHub</a>.</td></tr>
+  </tbody>
+</table>
+
+<h2>How it was built</h2>
+<p>The hook module is 856 lines. This page covers its hook registrations and its types file. It does not cover the drawing code in <code>render.tsx</code>. The steps follow the order in the file.</p>
+
+<h3>1. Add the placeholder and read the options</h3>
+<p>The <code>engine.create</code> hook adds a <code>prismantis.markdown</code> placeholder that returns <code>undefined</code>. If <code>enabled</code> is false, the register function stops there, so the placeholder stays. Otherwise it picks the theme and builds one style object from the options. <code>random</code> picks a dark preset each time the mod loads, as <code>plugin.json</code> says.</p>
+<pre><code>export const register: Register = (on, options) =&gt; {
+  on('engine.create', async (_$, e, next) =&gt; ({ ...(await next(e)), prismantis: { markdown: async () =&gt; undefined } }))
+  if (options.enabled === false) return
+  const firstTheme = pickTheme(options.theme)
+  const style = resolveStyle({ ...options, theme: firstTheme })</code></pre>
+
+<h3>2. Draw tool calls as one line</h3>
+<p>This block runs only when the <code>toolRows</code> option is not false. The <code>ToolUse</code> hook draws a compact row, such as <code>Read ~/src/app.ts</code>. When the row is expanded, shell calls get their own expanded drawing. Other calls pass to Claude Code's drawing.</p>
+<pre><code>    on('ui.render', { component: 'ToolUse' }, async ($, e, next) =&gt; {
+      await locate($, style)
+      noteCommand(e.props.tool_use_id, e.props.tool, e.props.input)
+      if (quiet &amp;&amp; isReadOnlyCall(e.props.tool, e.props.input)) rememberCall(readOnlyCalls, e.props.tool_use_id)
+      if (!expandedCalls.has(e.props.tool_use_id)) return renderToolRow($.ui.resolve(e), forSurface(style, e, await linkReach($, probes, style)), e.props, e.viewport?.columns)
+      const shell = e.props.tool === 'Bash' || e.props.tool === 'PowerShell'
+      return shell &amp;&amp; typeof e.props.output !== 'string' ? renderExpandedShell($.ui.resolve(e), style, e.props, e.viewport?.columns) : next(e)
+    })</code></pre>
+
+<h3>3. Handle the /prismantis command</h3>
+<p><code>session.start</code> registers the command. The <code>command.run</code> hook, matched on <code>{ command: 'prismantis' }</code>, reads the arguments. It handles <code>demo</code>, <code>setup</code>, <code>copy</code> and <code>theme</code>. A theme name is checked against the list before anything changes.</p>
+<pre><code>  on('command.run', { command: 'prismantis' }, async ($, e) =&gt; {
+    const [first, second, third] = e.args.trim().split(/\s+/)
+    const [sub, name] = THEME_ARGS.includes(first ?? '') ? ['theme', first] : [first, second]
+    if (sub === 'demo') return { text: showcaseText(PRESET_NAMES) + languageShowcase(await localeOf($, name)) }
+    if (sub === 'setup') return { text: await setup($, picked, e.origin, name, third) }
+    if (sub === 'copy') {
+      const reply = (await $.session.messages()).findLast(m =&gt; m.role === 'assistant' &amp;&amp; m.text.trim())
+      if (!reply) return { text: 'Nothing to copy yet.' }
+      const code = name === 'code' ? nestedBlocks(parseCached(reply.text)).findLast(b =&gt; b.kind === 'code') : undefined
+      if (name === 'code' &amp;&amp; code?.kind !== 'code') return { text: 'The last reply has no code block.' }
+      const result = await $.ui.copy({ text: code?.kind === 'code' ? code.lines.join('\n') : reply.text })
+      return { text: result.isCopied ? `Copied the last ${code ? 'code block' : 'reply'}.` : `Copy failed: ${result.reason}` }
+    }
+    if (sub === 'demo-rtl') {
+      await probe($, style, probes)
+      return { text: rtlShowcaseText() }
+    }
+    if (sub !== 'theme') return { text: helpText(PRESET_NAMES) }
+    if (!name) return { text: options.theme === 'random' ? `current: ${picked.theme} (random)\nkeep it: /prismantis theme ${picked.theme}` : `current: ${picked.theme}` }
+    if (!THEME_ARGS.includes(name)) return { text: `Unknown theme "${name}". Themes: ${PRESET_NAMES.join(', ')}, random` }
+    return { text: await setTheme($, picked, name) }
+  })</code></pre>
+
+<h3>4. Draw assistant replies</h3>
+<p>The <code>AssistantMessage</code> hook parses the reply text into blocks. If there are none, it passes the event on. Otherwise it draws the blocks with <code>drawMarkdown</code>, and wraps them with <code>renderReply</code>, which comes from <code>render.tsx</code>.</p>
+<pre><code>  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) =&gt; {
+    const blocks = parseCached(e.props.text)
+    if (blocks.length === 0) return next(e)
+    const el = $.ui.resolve(e)
+    const narration = style.toolStyle === 'tree-bold' &amp;&amp; blocks.length === 1 &amp;&amp; blocks[0]!.kind === 'paragraph'
+    const reach = await linkReach($, probes, style)
+    const math = await mathOfBlocks($, latex, e.surface, blocks)
+    const pictures = await picturesOf($, style, probes, e.surface, blocks)
+    const surfaceStyle = { ...(await withFoundPaths($, pathChecks, forSurface(style, e, reach), blocks)), images: await imagesOn($, probes, e.surface) }
+    const open = await read($, unfolded)
+    const reply = blocks.length &gt; 1 || hasRtl(e.props.text) ? e.props.text : undefined
+    const corner = reply !== undefined &amp;&amp; markerRoom(surfaceStyle) &gt; 0
+    const columns = columnsOf(e.viewport)
+    const framed = replyStyleFor(surfaceStyle, e.props.text)
+    const drawn = drawMarkdown($, el, narration ? { ...surfaceStyle, narration } : surfaceStyle, blocks, columns - replyRoom(framed), math, pictures, reply, open, { id: e.requestId, press: reach.marks })
+    return renderReply(el, framed, drawn, e.props.isFirstOfReply === true, columns, corner)
+  })</code></pre>
+
+<h3>5. Let other mods draw Markdown</h3>
+<p>The <code>prismantis.markdown</code> hook answers calls made as <code>$.prismantis.markdown({ surface, text, columns })</code>. It returns a drawn element, or passes the event on when the text has no blocks. Copy buttons are turned off for these calls, because a button cannot cross from one mod's output into another's.</p>
+<pre><code>  on('prismantis.markdown', async ($, e, next) =&gt; {
+    const blocks = parseCached(e.text, shared, 20)
+    if (blocks.length === 0) return next(e)
+    const el = $.ui.resolve({ surface: e.surface, component: 'AssistantMessage' })
+    const { Box } = el
+    const surfaceStyle = forSurface(style, e, await linkReach($, probes, style))
+    return { value: &lt;Box flexDirection="column" rowGap={1} {...fullWidth(e.text)}&gt;{drawMarkdown($, el, { ...surfaceStyle, copyButtons: false }, blocks, Math.max(20, e.columns || 0))}&lt;/Box&gt; }
+  })</code></pre>
+
+<h3>6. Declare the types for other mods</h3>
+<p><code>types/index.d.ts</code> declares the argument and return types of that call. The README says a mod that lists prismantis under <code>dependencies</code> gets these types. A mod that treats prismantis as optional can declare its own copy instead.</p>
+<pre><code>export type PrismantisMarkdownArgs&lt;Surface&gt; = {
+  surface: Surface
+  text: string
+  columns: number
+}
+
+export type Prismantis&lt;Surface, Drawing&gt; = {
+  markdown: (args: PrismantisMarkdownArgs&lt;Surface&gt;) =&gt; Promise&lt;Drawing | undefined&gt;
+}</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add NahumLitvin/prismantis
+claude plugin install prismantis@prismantis</code></pre>
+<p>The marketplace name is <code>prismantis</code>, from <code>.claude-plugin/marketplace.json</code>. The README says it needs Claude Code 2.1.287 or later.</p>
+
+<ul class="steps">
+  <li>Run <code>/prismantis setup</code> to pick a theme and styles from drawn samples. Run <code>/prismantis demo</code> for a tour of the main features.</li>
+  <li>Run <code>/prismantis theme &lt;name&gt;</code> to switch the theme at once. Run <code>/prismantis copy</code> to copy the last reply, or <code>/prismantis copy code</code> to copy its last code block.</li>
+  <li>To change an option, set it under <code>pluginConfigs</code>, then <code>"prismantis@prismantis"</code>, then <code>"options"</code>, in <code>~/.claude/settings.json</code>. Then run <code>/reload</code>.</li>
+  <li>To turn it off, set <code>"enabled": false</code> in the options, or disable the plugin in <code>/plugin</code>. Claude Code's own renderer comes back.</li>
+</ul>
+
+<p><strong>Cost.</strong> The hook code makes no network calls. A search of <code>hooks/</code> finds no <code>fetch</code> or HTTP client. Two programs can run. One is the LaTeX renderer, and only while <code>latex</code> is on. The other is the clipboard helper, which the README says runs only on a click. By default, <code>diagramHints</code> adds a short hidden note to each prompt you type. The README puts that at about 630 tokens, which is a model cost on every prompt.</p>
+
+<p><strong>Limits.</strong> The README lists these.</p>
+<ul>
+  <li>The parser covers what Claude writes. It is not full CommonMark. HTML draws as plain text, and a quote ends at the first line without a quote mark.</li>
+  <li>Widths count CJK and emoji as two columns. Some emoji may still be one column off, because terminals disagree.</li>
+  <li>Languages outside its 24 known ones draw in the theme's code text colour.</li>
+  <li>It was tested by hand in the macOS terminal. CI runs the tests on macOS, Linux and Windows. The desktop app, VS Code and mobile are not yet checked by hand.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>What does <code>next(e)</code> do in these hooks, and why does prismantis use it?</summary>
+  <p>It passes the event to the next handler, which is Claude Code's own drawing or another mod. Prismantis does this when it has nothing to draw. For example, an assistant reply with no blocks passes through, and so does an expanded tool call that is not a shell command.</p>
+</details>
+<details class="check">
+  <summary>Why does the <code>prismantis.markdown</code> hook turn off copy buttons?</summary>
+  <p>The README says a copy button cannot cross from one mod's output into another. The code sets <code>copyButtons: false</code> for these calls, so no button appears in the drawn element.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li><a href="https://github.com/NahumLitvin/prismantis/blob/main/hooks/register.tsx">The mod's hook module: hooks/register.tsx</a> (local clone)</li>
+  <li><a href="https://github.com/NahumLitvin/prismantis/blob/main/types/index.d.ts">The types for other mods: types/index.d.ts</a> (local clone)</li>
+  <li><a href="https://github.com/NahumLitvin/prismantis/blob/main/README.md">The mod's README</a> (local clone)</li>
+  <li><a href="https://github.com/NahumLitvin/prismantis">prismantis on GitHub</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0028-plain-english.html">← 0028 Plain English</a>
+  <a href="../index.html">Index</a>
+  <a href="0030-jev-skill-router.html">0030 Jev skill router →</a>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "dictation-fixer",
+  "version": "0.1.0",
+  "description": "Tidies long messages that look dictated, then asks whether to send the cleaned version or the text as typed",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT"
+}

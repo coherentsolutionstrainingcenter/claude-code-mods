@@ -1,0 +1,9 @@
+{
+  "name": "collision-guard",
+  "version": "0.1.0",
+  "description": "Asks before Edit or Write changes a file that another chat edited in the last 30 minutes, with Proceed and Cancel",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT"
+}

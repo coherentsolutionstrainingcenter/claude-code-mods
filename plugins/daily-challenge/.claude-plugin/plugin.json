@@ -1,0 +1,10 @@
+{
+  "name": "daily-challenge",
+  "version": "0.1.0",
+  "description": "One small Claude Code challenge each day in a /challenge pane, with Coach me, Done and Skip buttons and a streak",
+  "author": {
+    "name": "Igor Waraxe"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

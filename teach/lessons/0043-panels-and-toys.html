@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0043: Panels and toys</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+  th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+  th { font-family: system-ui, -apple-system, sans-serif; color: var(--muted); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+
+<p class="kicker">Lesson 0043 · Family</p>
+<h1>Panels and toys</h1>
+<p class="lede">session-band puts the session at a glance in one band above the prompt: turn number, output speed, turn and session cost, a prompt cache countdown and context fill.</p>
+
+<dl class="meta">
+  <dt>Shipped plugin</dt>
+  <dd>session-band 0.2.0, from <a href="https://github.com/JohnnyVizz/claude-kit">JohnnyVizz/claude-kit</a>, folder <code>plugins/session-band</code></dd>
+  <dt>Folder</dt>
+  <dd><code>plugins/session-band</code></dd>
+  <dt>Hooks</dt>
+  <dd><code>session.start</code>, <code>command.run</code> (<code>session_data</code>), <code>turn.start</code>, <code>turn.step</code>, <code>turn.complete</code>, and <code>ui.render</code> with component <code>AbovePrompt</code></dd>
+  <dt>Calls</dt>
+  <dd><code>atom</code>, <code>read</code> and <code>update</code> from <code>'claude-code'</code>; <code>$.command.register()</code>, <code>$.clock.every()</code>, <code>$.clock.now()</code>, <code>$.session.usage()</code>, <code>$.session.cwd()</code>, <code>$.session.id()</code>, <code>$.env.get()</code>, <code>$.fs.exists()</code>, <code>$.fs.read()</code>, <code>$.process.run()</code>, <code>$.tool.call()</code>, <code>$.ui.toast()</code>, <code>$.ui.resolve()</code>, and the value <code>$.plugin.root</code></dd>
+  <dt>Files</dt>
+  <dd><code>.claude-plugin/plugin.json</code>, <code>hooks/hooks.json</code>, <code>hooks/register.tsx</code>, <code>types/index.d.ts</code>, <code>notifier/build.sh</code>, <code>notifier/Notifier.swift</code>, <code>notifier/Info.plist</code>, <code>README.md</code>, <code>LICENSE</code></dd>
+  <dt>Author and licence</dt>
+  <dd>JohnnyVizz (written <code>johnnyvizz</code> in <code>plugin.json</code>). MIT, in the folder's <code>LICENSE</code> and in <code>plugin.json</code>.</dd>
+</dl>
+<!-- shipped:start -->
+<div class="note"><strong>In this marketplace:</strong> plugin <code>session-band</code> 0.2.0, by JohnnyVizz, MIT · upstream <a href="https://github.com/JohnnyVizz/claude-kit">https://github.com/JohnnyVizz/claude-kit</a>.<br>Install: <code>claude plugin install session-band@waraxe-claude-mods</code> · folder <a href="../../plugins/session-band/">plugins/session-band</a> · <a href="../../plugins/session-band/INSTRUCTIONS.md">instructions</a></div>
+<!-- shipped:end -->
+
+<h2>What it is</h2>
+<p>session-band draws one row above the prompt. It shows the turn number, the output speed of the last response in tokens per second, the cost of the last turn and of the session, how long the 1-hour prompt cache has left since the last answer, and how full the context is. The band gets an amber frame 20 minutes before the cache expires and a red one at 10. At 10 and 5 minutes left, it sends a warning.</p>
+<p>It serves <a href="../MISSION.md">your mission</a> because it reads the session's own figures from three turn events and draws them without any model call, so each hook has one clear job.</p>
+
+<h2>Variants</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>What it does</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>—</td><td>session-band by JohnnyVizz<br><strong>Shipped in this marketplace</strong></td><td>A band above the prompt with the turn number, output speed, turn and session cost, prompt cache countdown and context fill. It warns before the cache expires.</td><td>MIT: <a href="https://github.com/JohnnyVizz/claude-kit">JohnnyVizz/claude-kit</a>, folder <code>plugins/session-band</code>. Here: <code>plugins/session-band</code></td></tr>
+    <tr><td>29</td><td>Breathing panel</td><td>No description on disk. The synthesis grades it 2.</td><td>Video only: <a href="https://www.youtube.com/watch?v=WTG3X4r1lA4">video</a> · <a href="../reference/mod-catalogue.html#m29">catalogue</a></td></tr>
+    <tr><td>6f</td><td>Tool counter</td><td>No description on disk. The synthesis grades it 2.</td><td>Video only: <a href="https://www.youtube.com/watch?v=XaYubuLtW8M">video</a> · <a href="../reference/mod-catalogue.html#m6f">catalogue</a></td></tr>
+    <tr><td>6i</td><td>Receipt</td><td>No description on disk. The synthesis grades it 3.</td><td>Video only: <a href="https://www.youtube.com/watch?v=uvIopT_2sY0">video</a> · <a href="../reference/mod-catalogue.html#m6i">catalogue</a></td></tr>
+    <tr><td>2b</td><td>Vibe bar</td><td>No description on disk. The synthesis grades it 3.</td><td>Video only: <a href="https://www.youtube.com/watch?v=moOBIaIb4a8">video</a> · <a href="../reference/mod-catalogue.html#m2b">catalogue</a></td></tr>
+    <tr><td>30</td><td>Local model status</td><td>No description on disk. The synthesis grades it 3.</td><td>Video only: <a href="https://www.youtube.com/watch?v=XaYubuLtW8M">video</a> · <a href="../reference/mod-catalogue.html#m30">catalogue</a></td></tr>
+    <tr><td>—</td><td>turn-band by RocketLauncher Builds<br><strong>Not shipped: no licence</strong></td><td>A live band above the prompt: seconds, tool calls and files edited in the current turn, with a toast when the turn ends.</td><td>Local: <a href="file:///Users/igorwaraxe/Downloads/claude-mods-starter-pack/turn-band">claude-mods-starter-pack/turn-band</a></td></tr>
+  </tbody>
+</table>
+<p>The five numbered entries come from the review notes in MODS-FINAL-SYNTHESIS.md. They have no code on disk, and the synthesis puts all five in its bottom tier. session-band and turn-band have no ID in FAMILIES.md, so their rows show a dash. turn-band comes from the RocketLauncher Builds starter pack, which has no LICENSE file.</p>
+
+<h2>How it was built</h2>
+<p><code>hooks/hooks.json</code> names one module, <code>register.tsx</code>, which holds every hook. The <code>notifier</code> folder is a small macOS app for the cache warning. The steps follow one turn, then the countdown after it.</p>
+
+<h3>1. Keep the figures in atoms</h3>
+<p>An atom is a named value with a starting value. <code>stats</code> holds the turn, speed and costs. <code>cache</code> holds the countdown. <code>isHidden</code> is set by the <code>×</code> button. <code>isBusy</code> is true while a turn runs. <code>warned</code> remembers the last warning. <code>types/index.d.ts</code> gives each key its type.</p>
+<pre><code>const stats = atom({ plugin: 'session-band', key: 'stats' } as const, {
+  turn: 0,
+  speed: null,
+  turnCost: null,
+  total: 0,
+  context: 0,
+  costAtStart: 0,
+} as Stats)
+
+const cache = atom({ plugin: 'session-band', key: 'cache' } as const, {
+  expiresAt: null,
+  secondsLeft: null,
+} as Cache)
+
+// Closed with ×: stays hidden for the rest of the session.
+const isHidden = atom({ plugin: 'session-band', key: 'isHidden' } as const, false)
+
+// A turn is running: the cache stays warm, so no countdown warnings.
+const isBusy = atom({ plugin: 'session-band', key: 'isBusy' } as const, false)
+
+// The smallest CACHE_NOTIFY_MINUTES already announced since the last answer; 0 none.
+const warned = atom({ plugin: 'session-band', key: 'warned' } as const, 0)</code></pre>
+
+<h3>2. Mark the start of each turn</h3>
+<p><code>turn.start</code> adds one to the turn number and notes the session's cost so far, so the turn's own cost can be worked out later. It also sets <code>isBusy</code>, which holds back cache warnings while Claude works.</p>
+<pre><code>  on('turn.start', async ($, e, next) =&gt; {
+    const total = (await $.session.usage()).cost?.usd ?? 0
+    await update($, stats, s =&gt; ({ ...s, turn: s.turn + 1, costAtStart: total, total }))
+    await update($, isBusy, () =&gt; true)
+
+    return next(e)
+  })</code></pre>
+
+<h3>3. Time the output speed</h3>
+<p><code>turn.step</code> fires for each model request, and it streams. The hook skips subagent requests. For the main thread it loops over the stream itself: the clock starts at the first chunk, and the <code>stop</code> chunk carries the output token count. A reading under 20 tokens, under half a second, or over 1,000 tokens a second is dropped. Every chunk is yielded on unchanged. After the stream, <code>refresh</code> reads the cost and context fill with <code>$.session.usage()</code>.</p>
+<pre><code>  on('turn.step', async function* ($, e, next) {
+    if (e.agentId !== undefined) return yield* next(e)
+
+    // Measured from the response's first item (its envelope, message_start), so
+    // time-to-first-token is excluded but thinking that streams hidden or in one
+    // late burst is still timed: output_tokens counts it.
+    let startedAt: number | null = null
+
+    for await (const chunk of next(e)) {
+      if (startedAt === null) {
+        startedAt = await $.clock.now()
+      }
+
+      if (chunk.kind === 'stop' &amp;&amp; chunk.usage !== null) {
+        const tokens = chunk.usage.output_tokens
+        const seconds = ((await $.clock.now()) - startedAt) / 1000
+        const speed = tokens / seconds
+        if (tokens &gt;= MIN_TOKENS &amp;&amp; seconds &gt;= MIN_SECONDS &amp;&amp; speed &lt;= MAX_SPEED) {
+          await update($, stats, s =&gt; ({ ...s, speed: Math.round(speed) }))
+        }
+      }
+
+      yield chunk
+    }
+
+    await refresh($)
+  })</code></pre>
+
+<h3>4. Restart the cache countdown when the main turn ends</h3>
+<p><code>turn.complete</code> refreshes the figures again. When the main thread's turn ends, the cache deadline is set one hour ahead (<code>CACHE_TTL_MS</code>). <code>isBusy</code> goes back to false, and the warnings re-arm.</p>
+<pre><code>  on('turn.complete', async ($, e, next) =&gt; {
+    const result = await next(e)
+    await refresh($)
+
+    if (e.agentId === undefined) {
+      const now = await $.clock.now()
+      await update($, cache, () =&gt; ({ expiresAt: now + CACHE_TTL_MS, secondsLeft: CACHE_TTL_MS / 1000 }))
+      await update($, isBusy, () =&gt; false)
+      await update($, warned, () =&gt; 0)
+    }
+
+    return result
+  })</code></pre>
+
+<h3>5. Count down and warn at 10 and 5 minutes</h3>
+<p><code>session.start</code> registers <code>/session_data</code> and starts a one-second timer. Each tick works out the seconds left. If this session has no deadline yet, it reads one from another mod's atom: the comment says the Cache mod's deadline seeds this one after a reload. At 10 and at 5 minutes left, each once per answer, it sends a warning. Nothing fires while a turn runs.</p>
+<pre><code>    $.clock.every(1000, async () =&gt; {
+      const expiresAt = (await read($, cache)).expiresAt ?? (await read($, cacheModExpiresAt))
+      if (expiresAt === null) return
+
+      const left = Math.max(0, Math.floor((expiresAt - (await $.clock.now())) / 1000))
+      if (left !== (await read($, cache)).secondsLeft) {
+        await update($, cache, c =&gt; ({ expiresAt: c.expiresAt ?? expiresAt, secondsLeft: left }))
+      }
+
+      const due = CACHE_NOTIFY_MINUTES.filter(m =&gt; left &gt; 0 &amp;&amp; left &lt;= m * 60)
+      if (due.length === 0 || (await read($, isBusy))) return
+
+      const minutes = Math.min(...due)
+      const last = await read($, warned)
+      if (last !== 0 &amp;&amp; last &lt;= minutes) return
+
+      await update($, warned, () =&gt; minutes)
+      await notifyCacheExpiry($, Math.ceil(left / 60))
+    })</code></pre>
+
+<h3>6. Send the warning</h3>
+<p>The warning text is "Prompt cache expires in N min". If the notifier app was built, the mod runs it with a title made of the project folder and, in the desktop app, the session title. In the desktop app, a click on it opens the session through a <code>claude://</code> link. If the notifier is missing or fails, the mod calls Claude Code's own <code>PushNotification</code> tool with <code>$.tool.call</code>. If that is not delivered either, a toast shows the text for 30 seconds.</p>
+<pre><code>const notifyCacheExpiry = async ($: EngineInterface, minutes: number) =&gt; {
+  const project = (await $.session.cwd()).split('/').filter(Boolean).pop() ?? 'session'
+  const message = `Prompt cache expires in ${minutes} min`
+
+  const notifier = `${$.plugin.root}/${NOTIFIER}`
+  if (await $.fs.exists(notifier)) {
+    const session = await desktopSession($)
+    const argv = [
+      notifier,
+      '-title',
+      session?.title ? `${project} — ${session.title}` : project,
+      '-message',
+      message,
+      '-group',
+      `session-band-${session?.id ?? (await $.session.id())}`,
+      ...(session ? ['-open', `claude://code/continue?session=${session.id}`] : []),
+    ]
+    // The first run waits while macOS asks whether to allow its notifications.
+    const ran = await $.process.run(argv, { timeoutMs: 60_000 }).catch(() =&gt; null)
+    if (ran?.exitCode === 0) return
+  }</code></pre>
+
+<h3>7. Draw the band to fit the width</h3>
+<p>The <code>AbovePrompt</code> hook passes while a survey is open, before the first turn, or while the band is hidden. While Claude works, the cache shows <code>…</code> and has no frame. Otherwise the frame turns amber at 20 minutes left and red at 10. <code>tierFor</code> picks a density from <code>bodyColumns</code>: the comment says the row drops details as it narrows instead of wrapping. Icons are SVG where the surface has an <code>Svg</code> element, and plain glyphs elsewhere.</p>
+<pre><code>  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =&gt; {
+    const s = await read($, stats)
+    if (e.props.hasSurvey || s.turn === 0 || (await read($, isHidden))) return next(e)
+
+    const ui = $.ui.resolve(e)
+    const { Box, Button, Text } = ui
+    const Svg = 'Svg' in ui ? ui.Svg : null
+    const speed = s.speed === null ? '—' : `${s.speed} tok/s`
+    const turnCost = s.turnCost === null ? '—' : usd(s.turnCost)
+
+    const { secondsLeft } = await read($, cache)
+    const level =
+      e.props.isWorking || secondsLeft === null
+        ? null
+        : secondsLeft &lt;= CACHE_ALERT_S
+          ? ALERT
+          : secondsLeft &lt;= CACHE_WARN_S
+            ? WARN
+            : null
+    const cacheColor = level ?? CACHE
+    const cacheText =
+      e.props.isWorking ? '…'
+      : secondsLeft === null ? '—'
+      : secondsLeft === 0 ? 'expired'
+      : `${pad(Math.floor(secondsLeft / 60))}:${pad(secondsLeft % 60)}`
+
+    lastColumns = e.props.bodyColumns
+    const tier = tierFor(e.props.bodyColumns)
+    const icon = tier &gt;= 3 ? 18 : 22</code></pre>
+
+<h2>How to use it</h2>
+<pre><code class="language-bash">claude plugin marketplace add &lt;org&gt;/waraxe-claude-mods
+claude plugin install session-band@waraxe-claude-mods</code></pre>
+<p>Replace <code>&lt;org&gt;</code> with the GitHub owner of this marketplace. The marketplace README says to run <code>/reload-plugins</code> or start a new session after the install.</p>
+
+<ul class="steps">
+  <li>The band appears once the first turn starts.</li>
+  <li><code>/session_data</code> shows or hides the band. The <code>×</code> on the band hides it for the rest of the session.</li>
+  <li><code>/session_data demo &lt;minutes&gt;</code> pretends the cache has that many minutes left, to preview the colors and the warning. The next answer resets it.</li>
+  <li>The notifier (macOS) is built once, with Xcode's command line tools. The README gives this command:
+    <pre><code class="language-bash">plugins/session-band/notifier/build.sh</code></pre>
+    It builds <code>notifier/Session Band.app</code> next to the script, with the icon taken from your installed Claude.app. Build it in the folder the mod is loaded from, or copy the built app there. On its first notification, macOS asks whether to allow notifications from "Session Band".</li>
+  <li>Without the notifier, or on another OS, the mod falls back to Claude Code's own notification. The README says it also reaches your phone over Remote Control, but has no title or click-through. When you are already at the session, that one is skipped and a toast says it instead.</li>
+  <li>Settings: none. The manifest declares no <code>userConfig</code>.</li>
+  <li>Cost: no model call. The band reads <code>$.session.usage()</code>, and the warning runs a local app or Claude Code's notification tool.</li>
+</ul>
+
+<h3>Limits</h3>
+<ul class="steps">
+  <li>The countdown assumes a 1-hour cache from the last main answer. It is a timer kept by the mod, set one hour ahead after each main answer.</li>
+  <li>Speed counts only main-thread responses. Short or one-burst responses are not timed, so the speed can stay at the last good reading.</li>
+  <li>The notifier is macOS only. In the desktop app it reads the session title from a file under <code>~/Library/Application Support/Claude/claude-code-sessions</code>.</li>
+  <li>The types say <code>AbovePrompt</code> is raised on the terminal and desktop surfaces only.</li>
+</ul>
+
+<h2>Check yourself</h2>
+<details class="check">
+  <summary>Why does the <code>turn.step</code> hook loop with <code>for await</code> and <code>yield chunk</code>, instead of returning <code>next(e)</code>?</summary>
+  <p>It needs to see the stream. The first chunk starts the clock, and the <code>stop</code> chunk gives the output tokens. Yielding each chunk passes it on unchanged, so the response is the same as without the mod.</p>
+</details>
+<details class="check">
+  <summary>The cache has 8 minutes left and Claude is in the middle of a turn. Does a warning fire?</summary>
+  <p>No. <code>turn.start</code> set <code>isBusy</code>, and the timer returns before warning while it is true. The band shows <code>…</code> for the cache. When the main turn ends, the countdown restarts at one hour and the warnings re-arm.</p>
+</details>
+
+<h2>Go further</h2>
+<ul>
+  <li>Main hook file: <a href="../../plugins/session-band/hooks/register.tsx">plugins/session-band/hooks/register.tsx</a></li>
+  <li>Upstream repository: <a href="https://github.com/JohnnyVizz/claude-kit">github.com/JohnnyVizz/claude-kit</a>, folder <code>plugins/session-band</code></li>
+  <li>API types for <code>turn.step</code>, <code>$.session.usage()</code>, <code>$.tool.call</code> and <code>AbovePrompt</code>: <a href="../reference/engine/types/claude-code.d.ts">claude-code.d.ts</a></li>
+  <li><a href="../reference/mod-api-cheatsheet.html">Mod API cheatsheet</a></li>
+  <li><a href="../reference/mod-catalogue.html">Mod catalogue</a></li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0042-games-and-waiting.html">← 0042 Games and waiting</a>
+  <a href="../index.html">Index</a>
+  <span></span>
+</nav>
+
+<p class="note">Ask follow-up questions in this chat. This page is a starting point; the agent is your teacher.</p>
+
+</main>
+</body>
+</html>
