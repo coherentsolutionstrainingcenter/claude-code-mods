@@ -12,6 +12,7 @@ type Opts = {
   files?: Record<string, string>
   root?: () => string
   box?: string
+  beneath?: unknown
 }
 
 function world(on: On, opts: Opts = {}) {
@@ -46,7 +47,7 @@ function world(on: On, opts: Opts = {}) {
   })
   on('command.register', async ($, e) => ok({ command: e.name }))
   on('ui.toast', async () => VOID)
-  on('ui.render', async () => ({ type: 'Box', props: {}, children: [] }) as never)
+  on('ui.render', async () => (opts.beneath ?? { type: 'Box', props: {}, children: [] }) as never)
   on('session.start', async () => ({ cwd: '/repo' }) as never)
   on('prompt.submit', async ($, e) => ({ text: e.text }))
   on('prompt.compose', async () => ({ sections: [] }))
@@ -220,4 +221,15 @@ test('broken markers in the target file block the write', async ($, on) => {
   await press($, 'save:')
   expect(w.files['/repo/CLAUDE.md']).toBe(broken)
   expect(await rows($)).toEqual(['reflect · "Use pnpm, not npm, in this repo"'])
+})
+
+test('the band leaves out Claude Code’s placeholder when nothing is drawn beneath it', async ($, on) => {
+  // With no band beneath, next(e) answers Claude Code's own drawing of the band.
+  const w = world(on, { beneath: { type: 'engine', ref: 0 } })
+  await start($)
+  await say($, w, 'remember: answer me in English')
+  const ui = await mount($)
+  expect(await ui.find({ type: 'Text', text: /^reflect · "answer me in English"$/ })).toBeDefined()
+  expect(JSON.stringify(await ui.drawn())).not.toContain('"engine"')
+  await ui.unmount()
 })

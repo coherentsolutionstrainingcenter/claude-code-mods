@@ -376,7 +376,9 @@ export const register: Register = (on, options) => {
     const list = await read($, pending)
     if (list.length === 0) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
-    const below = await next(e)
+    const drawn = await next(e)
+    // Claude Code's own placeholder ({ type: 'engine' }) is never nested: the desktop drops a band that nests it.
+    const below = drawn && drawn.type !== 'engine' ? drawn : null
     return (
       <Box flexDirection="column">
         {list.slice(0, BAND_ROWS).map(l => (

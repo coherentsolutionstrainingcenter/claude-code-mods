@@ -35,7 +35,7 @@ type ForkAnswer = null | ModelForkResult | { read: number; write: number; out?: 
 
 // The world beneath the mod: its store, the engine's answers, and a fork that
 // replies from a script so each test decides what the cache looked like.
-function world(on: On, forkAnswers: ForkAnswer[], opts: { store?: Map<string, unknown>; commands?: string[]; live?: { tokens?: number }; startedAt?: () => number; sid?: string | (() => string); model?: string | (() => string); bandText?: string; theme?: { value: string }; noColor?: boolean; denyTheme?: boolean; writtenTheme?: string; gate?: () => Promise<void>; steps?: TurnUsage[]; storeGate?: (op: 'get' | 'set' | 'delete', key: string) => Promise<void> } = {}) {
+function world(on: On, forkAnswers: ForkAnswer[], opts: { beneath?: unknown; store?: Map<string, unknown>; commands?: string[]; live?: { tokens?: number }; startedAt?: () => number; sid?: string | (() => string); model?: string | (() => string); bandText?: string; theme?: { value: string }; noColor?: boolean; denyTheme?: boolean; writtenTheme?: string; gate?: () => Promise<void>; steps?: TurnUsage[]; storeGate?: (op: 'get' | 'set' | 'delete', key: string) => Promise<void> } = {}) {
   if (opts.store) {
     const store = opts.store
     // A read takes its value first and is delivered after the gate, as a reply can arrive late.
@@ -73,7 +73,7 @@ function world(on: On, forkAnswers: ForkAnswer[], opts: { store?: Map<string, un
   on('classic.SessionStart', () => ({}))
   on('ui.log', ($, e) => { logs.push(e.text); return { value: undefined } })
   on('ui.status', ($, e) => { status.push(e.text); return { value: undefined } })
-  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: [opts.bandText ?? ''] }))
+  on('ui.render', ($, e) => (opts.beneath ?? $.ui.resolve(e).Text({ children: [opts.bandText ?? ''] })) as never)
   on('model.fork', async () => {
     forks.push(forks.length)
     if (opts.gate) await opts.gate()
@@ -2283,4 +2283,17 @@ describe('a managed plugin above the user tier', () => {
     expect(w.status.at(-1)).toBe(undefined)
     expect((await $.command.run(run('cache-tax', ''))).text).toMatch(/session     0 cold writes paid/)
   })
+})
+
+test('the keep-warm row leaves out Claude Code’s placeholder when nothing is drawn beneath it', async ($, on) => {
+  mock.clock(on, { now: START })
+  // With no band beneath, next(e) answers Claude Code's own drawing of the band.
+  world(on, [], { beneath: { type: 'engine', ref: 0 } })
+  await $.session.start({ ...session, surface: 'terminal', isInteractive: true })
+  await $.command.run(run('keepwarm', '90m'))
+  await $.turn.complete(turn())
+  const ui = await $.ui.mount({ plugin: 'cache-tax', surface: 'terminal', component: 'AbovePrompt', props: bandProps })
+  expect(await ui.find({ type: 'Text', text: /cache-tax/ })).toBeDefined()
+  expect(JSON.stringify(await ui.drawn())).not.toContain('"engine"')
+  await ui.unmount()
 })

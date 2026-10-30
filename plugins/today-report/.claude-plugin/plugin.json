@@ -20,7 +20,7 @@
       "type": "number",
       "title": "Hourly rate",
       "description": "Your hourly rate in dollars, for the value estimate.",
-      "default": 50,
+      "default": 32,
       "min": 0
     }
   }

@@ -266,7 +266,8 @@ export function register(on) {
     const line = e.surface === 'terminal' || !el.Svg
       ? el.Text({ color: 'red', bold: true, children: ['● REC'] })
       : el.Svg({ source: REC_SVG, alt: 'REC', width: 54, height: 18 })
-    return el.Box({ flexDirection: 'column', children: below ? [line, below] : [line] })
+    // Claude Code's own placeholder ({ type: 'engine' }) is never nested: the desktop drops a band that nests it.
+    return el.Box({ flexDirection: 'column', children: below && below.type !== 'engine' ? [line, below] : [line] })
   })
 
   // The footer label shows even when the band is collapsed

@@ -218,3 +218,117 @@
 
 ### Not changed
 - No code written, and no plugin disabled or changed.
+
+## 2026-10-30, status-banner built
+
+### Added
+- `plugins/status-banner` 0.1.0: one banner above the prompt, built to the agreed field list in `docs/COMBINED-BANNER-FIELDS.md`. A plan row (5-hour and 7-day usage, the 5-hour reset, the spend limit), a session row right above the prompt (turn, tok/s, turn and session cost, cache countdown with a Keep warm button, context fill), a summary row (goal, next, waiting on you, from one Haiku call per turn) and a heads-up line after long turns. Each field drops in a narrow window by its agreed priority. Icons on the desktop, words and text bars on the terminal.
+- Keep warm is built in: one press keeps the cache warm for 2 hours with a `$.model.fork` ping 50 minutes after the last request (on a 1-hour cache) and shows the last ping's cost. It stops when the window ends, on a second press, after three failed pings in a row, when a ping finds the cache already cold, or on `/clear` or compaction.
+- Plugin options: `keepWarmHours` (2), `cacheLifetime` (`1h` or `5m`), `summaryRow` (on), `headsUp` (on).
+- Kept from the mods it replaces: the 90% plan toast (usage-meter) and the 10 and 5 minute cache warnings (session-band, without its macOS notifier app).
+- Registered in `.claude-plugin/marketplace.json` as tier 3.
+- Code taken from session-band (JohnnyVizz), usage-meter and where-am-i (Hamza Zafar) and cache-tax (Karan Bansal), all MIT, credited in its README and LICENSE.
+
+### Checked
+- `claude plugin test plugins/status-banner`: 18 tests pass, covering each row's fields, a row drawn beneath it, the placeholder left out, the survey, the narrow-window drops, heads-up and its Dismiss, both options that turn rows off, and keep-warm's timing on the mocked clock.
+- `claude plugin validate` passes for the plugin and the marketplace, and the type check shows no errors.
+- Not yet seen in the desktop app or a terminal session.
+
+### Not changed
+- No plugin was disabled, changed or uninstalled. session-band, usage-meter, where-am-i and heads-up stay enabled until the user turns them off.
+- `docs/plugins.json` does not list status-banner and it has no lesson, so `scripts/generate.py` would drop it from `.claude-plugin/marketplace.json`. The README's mods table and the marketplace's "42 mods" count do not include it.
+
+### Installed
+- `status-banner@waraxe-claude-mods` 0.1.0 installed at user scope, at the user's request. `claude plugin list` shows it enabled and read from `plugins/status-banner`. The only change to `~/.claude/settings.json` is its `enabledPlugins` entry.
+- Its 4 options are not set, so the defaults apply: a 2-hour keep-warm window, a 1-hour cache, and the summary row and heads-up on.
+- Backups of `settings.json` and `installed_plugins.json` from before the install are in the session scratchpad.
+
+## 2026-10-30, four more bands leave out the placeholder
+
+### Fixed
+- mission-control 0.1.8, cache-tax 2.3.2, recording-mode 1.0.1 and reflect-mod 3.3.1 nested Claude Code's own placeholder element (`{ type: 'engine' }`) when no band sat beneath them, and the desktop drops a band that nests it. They stay enabled after the switch to status-banner, so each now leaves the placeholder out. mission-control does it at its `stackBands()` call, so its shared `bands.ts` stays as upstream ships it.
+- A test in each draws the placeholder beneath the mod and checks the drawn tree no longer holds it. Each fails on the old code and passes now. recording-mode had no tests: its new file also checks that the REC badge keeps a band drawn beneath it.
+- `docs/BANNER-AND-OUTPUT-MODS.md` updated: usage-meter, where-am-i, heads-up and next-steps still nest the placeholder.
+
+### Checked
+- `claude plugin test` passes for all four, existing tests included (mission-control 15, cache-tax 161, recording-mode 2, reflect-mod 11). `claude plugin validate` passes, and type checks show no new errors.
+- Not yet seen in the desktop app.
+
+## 2026-10-30, status-banner takes session-band's look; session-band uninstalled
+
+### Changed
+- `plugins/status-banner` 0.2.0: the plan and session rows now look like session-band's row, one size larger. Figures are bold (the turn number, tok/s, both costs, the cache countdown, context and plan percentages). Fields are spaced by gaps (3 cells wide, fewer when narrow) instead of ` · ` dots. Context fill sits at the row's right end. On the desktop, these rows use the `heading` text size (one step above body), 24px icons (were 16px) and session-band's 80px context bar, colored green, amber from 65%, red from 85%. The terminal has one text size and keeps its words and text bars.
+- The summary and heads-up lines stay at body size so they still fit.
+- Narrow-window widths now count heading text at about 1.3 cells per character on the desktop, the bigger icons and the gaps, so fields still drop by priority instead of overflowing.
+- The README's layout example, field table and "Replacing the old bands" section match.
+- Tok/s and cost were already in status-banner (same timing and cost source as session-band). The two showed the same figures twice because session-band was still enabled.
+
+### Removed
+- `session-band@waraxe-claude-mods` disabled and uninstalled at user scope, at the user's request. Its code stays in `plugins/session-band` and in the marketplace. Backups of `settings.json` and `installed_plugins.json` from before are in `~/.claude/backups/before-session-band-uninstall-*`.
+- Left out of status-banner on purpose: session-band's `×` (it would hide the banner and its Keep warm button for the session) and its warning border.
+
+### Checked
+- `claude plugin test plugins/status-banner`: 19 tests pass. A new test checks the bold figures, the `heading` size, the 24px icons, the 80px context bar, the missing dots, and the summary row at body size. It fails on the old code, as do the two updated tests.
+- `claude plugin validate` passes, and the type check shows no errors.
+- `claude plugin list` shows status-banner enabled and read from `plugins/status-banner`, and session-band gone.
+- Not yet seen in the desktop app: the 1.3 cells per character for heading text is an estimate.
+
+### Not changed
+- usage-meter and where-am-i stay enabled. Their rows still repeat the plan row and the goal row.
+
+## 2026-10-30, status-banner 0.3.0: the 0.2.0 look reverted, session-band's look at its own size, plan row in two parts
+
+### Reverted
+- status-banner 0.2.0 (above) went back to 0.1.0 at the user's request: "definitely worse". Its `heading` text was counted at 1.3 columns a character, so in the user's desktop window (about 70 columns) the banner thought it was narrow. It dropped Turn, tok/s, the turn cost, the reset time and the bars while there was room. The 0.2.0 files are kept in the session scratchpad.
+
+### Changed
+- `plugins/status-banner` 0.3.0, session row: session-band's look at session-band's own text size, chosen by the user. Bold figures, 22px icons, gaps instead of ` · ` dots, context fill at the right end with session-band's 80px bar (green, amber from 65%, red from 85%) when wide.
+- Plan row: each window gets an equal part of the row, 5-hour left and 7-day right, at the user's request. Each bar is stretched to fill its part: on the desktop at 8 pixels a column (helper-desk's measure), on the terminal a text bar to the cell. Below 6 cells for a bar, the row lists its fields one after another as before.
+- Widths are now counted from measurements, not guesses. Desktop text counts about 0.9 of a column per character (measured on session-band's row in the user's screenshot), a Button its label plus 2.5. Before dropping anything, the banner tightens the gaps and shortens Keep warm's label while it is on to `◷ 1h59`. A 72-column desktop band keeps every session field, Keep warm on or off.
+- The session row and the plan row each pick the widest stage that fits, and fields of one priority still drop together in both.
+- `textBar` takes a cell count.
+- README updated: the layout example, the field table and the narrow-window rules.
+
+### Fixed during the work
+- Three windows (5h, 7d and spend limit) made each part `33.333333333333336%` wide, which the engine refuses, so nothing was drawn. Parts are now whole percents (`33%`), and a test checks it.
+
+### Disabled
+- `usage-meter@waraxe-claude-mods` disabled (not uninstalled) at the user's request: its row repeated the 5-hour and 7-day usage. A backup of `settings.json` from before is in `~/.claude/backups/before-usage-meter-disable-*`.
+- where-am-i stays enabled: the user does not see its goal row repeated.
+
+### Checked
+- `claude plugin test plugins/status-banner`: 21 tests pass. New tests check session-band's look at body size, every field in a 72-column desktop band with Keep warm on and off, the two stretched plan parts on the desktop (140 and 72 columns) and the terminal, and whole-percent parts for three windows. They fail on 0.1.0.
+- `claude plugin validate` passes, and the type check shows no errors.
+- Seen in the desktop app after `/reload-plugins`, and the user said "much better". Every session field shows with Keep warm on (`◷ 1h44`). The plan row shows its 5h and 7d parts with stretched bars, and neither usage-meter's nor session-band's row appears.
+
+## 2026-10-30, where-am-i disabled
+
+### Disabled
+- `where-am-i@waraxe-claude-mods` disabled (not uninstalled) at the user's request. Its "◆ Goal / now / next" row repeated status-banner's goal row, which stays, and each made its own Haiku call per turn. Its "now:" line is not replaced: mission-control's "Now:" row shows the same. A backup of `settings.json` from before is in `~/.claude/backups/before-where-am-i-disable-*`.
+- The status-banner README's "Replacing the old bands" section now lists only heads-up as still to disable.
+
+### Not changed
+- heads-up stays enabled. After a long turn, its flags can appear beside status-banner's own heads-up line.
+
+## 2026-10-30, heads-up disabled
+
+### Disabled
+- `heads-up@waraxe-claude-mods` disabled (not uninstalled) at the user's request. After a long turn its flags repeated status-banner's heads-up line, and each made its own Haiku call. A backup of `settings.json` from before is in `~/.claude/backups/before-heads-up-disable-*`.
+- All four bands status-banner replaces are now off: session-band uninstalled, and usage-meter, where-am-i and heads-up disabled. mission-control and cache-tax stay enabled, as planned.
+- The status-banner README's "Replacing the old bands" section now says this.
+
+## 2026-10-30, status-banner's goal label in teal with a diamond
+
+### Changed
+- `plugins/status-banner` 0.3.0: the summary row's label is now `◆ Goal: ` in bold theme cyan, which the desktop draws as teal. It is where-am-i's label, at the user's request, now that where-am-i is disabled. The rest of the row is unchanged.
+- The countdown test now has a 60-second limit, like the keep-warm tests. It runs 61 minutes of mocked clock in about 2.4 s, with the same time on 0.1.0, and once hit the 5-second default on a busy machine.
+- README: the layout example and the summary field's row show the new label.
+
+### Checked
+- `claude plugin test plugins/status-banner`: 21 tests pass. The goal-row test now checks the teal `◆ Goal: ` label, and that check fails on the old code. `claude plugin validate` passes, and the type check shows no errors.
+- Seen in the desktop app after `/reload-plugins`: the user confirmed the teal `◆ Goal:` looks right. The reload loaded 49 plugins, 2 fewer now that where-am-i and heads-up are disabled.
+
+## 2026-10-30, today-report default hourly rate
+
+### Changed
+- `plugins/today-report`: the `hourlyRate` option now defaults to $32 an hour instead of $50, as the user set it. The version is unchanged. It changes the value estimate for anyone who has not set the option.

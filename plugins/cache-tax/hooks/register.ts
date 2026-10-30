@@ -522,8 +522,10 @@ export const register: Register = on => {
       : e.surface === 'terminal' ? $.ui.resolve(e).Image({ source: { png: asset.png }, columns: 3, rows: 1, alt: '[>]' })
       : e.surface === 'desktop' ? $.ui.resolve(e).Svg({ source: asset.svg, width: 18, height: 18, alt: 'Cache Tax' })
       : Text({ color, bold: true, children: ['[>]'] })
+    // Claude Code's own placeholder ({ type: 'engine' }) is never nested: the desktop drops a band that nests it.
+    const below = rest && rest.type !== 'engine' ? [rest] : []
     return Box({ flexDirection: 'column', children: [
-      rest,
+      ...below,
       Box({ flexDirection: 'row', alignItems: 'center', children: [
         Box({ flexShrink: 0, children: [icon] }),
         Text({ children: [

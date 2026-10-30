@@ -34,7 +34,7 @@
       "name": "reflect-mod",
       "source": "./plugins/reflect-mod",
       "description": "claude-reflect as a Claude Code mod: a model check on each short prompt finds reusable corrections (any language); a band above the prompt saves them to CLAUDE.md on one press",
-      "version": "3.3.0",
+      "version": "3.3.1",
       "author": {
         "name": "Bayram Annakov"
       },
@@ -133,7 +133,7 @@
       "name": "cache-tax",
       "source": "./plugins/cache-tax",
       "description": "A Claude Code mod that keeps the one-hour prompt cache warm during breaks and stops a cold send once with its estimated rewrite cost. Warming uses model requests and costs tokens. Requires Claude Code 2.1.287+.",
-      "version": "2.3.1",
+      "version": "2.3.2",
       "author": {
         "name": "karanb192"
       },
@@ -166,7 +166,7 @@
       "name": "recording-mode",
       "source": "./plugins/recording-mode",
       "description": "/rec before you record: masks keys, personal details, and business figures on screen and keeps private files closed (/rec strict, /rec off, /rec config)",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": {
         "name": "Nate Herk"
       },
@@ -221,7 +221,7 @@
       "name": "mission-control",
       "source": "./plugins/mission-control",
       "description": "/mission opens a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "author": {
         "name": "Hamza Zafar"
       },
@@ -290,6 +290,17 @@
       "version": "0.2.6",
       "author": {
         "name": "Ray Amjad"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
+      "name": "status-banner",
+      "source": "./plugins/status-banner",
+      "description": "One status banner above the prompt: plan usage, the session's turn, speed, cost, cache countdown with a Keep warm button and context fill, a goal and next-step summary, and a heads-up after long turns.",
+      "version": "0.3.0",
+      "author": {
+        "name": "Igor Waraxe"
       },
       "license": "MIT",
       "category": "tier-3"

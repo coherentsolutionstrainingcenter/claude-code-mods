@@ -268,7 +268,9 @@ export const register: Register = on => {
         <Text dimColor>{'  ·  /mission'}</Text>
       </Text>
     )
-    return stackBands(rest, 'mission-control', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
+    // Claude Code's own placeholder ({ type: 'engine' }) is never nested: the desktop drops a band that nests it.
+    const below = rest?.type === 'engine' ? null : rest
+    return stackBands(below, 'mission-control', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
   })
 }
 

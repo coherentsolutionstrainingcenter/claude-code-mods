@@ -303,3 +303,16 @@ describe('mission-control', () => {
     await band.unmount()
   })
 })
+
+test('the band leaves out Claude Code’s placeholder when nothing is drawn beneath it', async ($, on) => {
+  // With no band beneath, next(e) answers Claude Code's own drawing of the band.
+  engine(on, { beneath: { type: 'engine', ref: 0 } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+  await $.turn.start({ text: 'fix the login bug', turnId: 't1' } as any)
+  await $.tool.call({ tool: 'Read', file_path: '/repo/src/pages/login.tsx' } as any)
+
+  const band = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...BAND } as any)
+  expect(await band.find({ type: 'Text', text: /1 tools/ })).toBeDefined()
+  expect(JSON.stringify(await band.drawn())).not.toContain('"engine"')
+  await band.unmount()
+})
