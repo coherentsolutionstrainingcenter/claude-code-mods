@@ -108,15 +108,26 @@ export const register: Register = on => {
     const state = await read($, pet)
     const frame = (await read($, beat)) % 2 === 0 ? 0 : 1
     const mood = moodOf(state, await $.clock.now(), e.props.isWorking)
+    // The bands beneath draw above the pet, so their rows stay.
+    const rest = await next(e)
     const { Box, Text } = $.ui.resolve(e)
 
-    return (
+    const band = (
       <Box>
         <Text color={COLORS[mood]}>{FRAMES[mood][frame].padEnd(10)}</Text>
         <Text dimColor wrap="truncate">
           {caption(mood, prefs.name, state)}
         </Text>
       </Box>
+    )
+
+    return rest ? (
+      <Box flexDirection="column">
+        {rest}
+        {band}
+      </Box>
+    ) : (
+      band
     )
   })
 }

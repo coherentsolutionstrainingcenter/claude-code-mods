@@ -5,6 +5,7 @@ import type { Audit, Check, Flag, Installed, View } from '../types'
 
 const PANE = 'mod-doctor'
 const LIST_CHARS = 200
+const BAND_HOOK = /on\(\s*['"]ui\.render['"]\s*,\s*\{[^}]*component:\s*['"]AbovePrompt['"][^}]*\}\s*,/g
 
 const view = atom(
   { plugin: 'mod-doctor', key: 'view' } as const,
@@ -92,11 +93,22 @@ async function validateOne($: EngineInterface, id: string, version: string, fold
     const run = await $.process.run(['claude', 'plugin', 'validate', folder], { timeoutMs: 60000 })
     const text = run.stdout + run.stderr
 
-    return { id, version, ...parseValidate(text), ...declared(text) }
+    return { id, version, ...parseValidate(text), ...declared(text), dropsBands: await anyDropsBands($, bandFiles(text)) }
   } catch (error) {
     const problem = error instanceof Error ? error.message : String(error)
-    return { id, version, verdict: 'unknown', warnings: 0, errors: 0, problem, hooks: [], calls: [] }
+    return { id, version, verdict: 'unknown', warnings: 0, errors: 0, problem, hooks: [], calls: [], dropsBands: false }
   }
+}
+
+/** Reads each band module's source; one that cannot be read counts as keeping the bands. */
+async function anyDropsBands($: EngineInterface, files: string[]): Promise<boolean> {
+  for (const file of files) {
+    const source = await $.fs.read(file).catch(() => '')
+    if (dropsBands(source)) {
+      return true
+    }
+  }
+  return false
 }
 
 function body(current: View, Box: any, Text: any) {
@@ -188,6 +200,13 @@ function flagsFor(installed: Installed[], checks: Check[]): Flag[] {
     })
   }
 
+  for (const check of checks.filter(check => check.dropsBands)) {
+    flags.push({
+      text: `${check.id} draws its band above the prompt without keeping the bands beneath it, so mods below it lose their rows while it shows (read from its source)`,
+      severity: 'note',
+    })
+  }
+
   const byName = new Map<string, string[]>()
   for (const plugin of installed.filter(p => p.enabled)) {
     const name = plugin.id.split('@')[0]
@@ -272,6 +291,68 @@ function declared(text: string): Pick<Check, 'hooks' | 'calls'> {
   }
 
   return { hooks, calls: [...new Set(calls)] }
+}
+
+/** The hooks modules the validator lists with an AbovePrompt render hook, as paths beside their hooks.json. */
+function bandFiles(text: string): string[] {
+  const dir = text.match(/^Validating hooks: (.+)\/[^/]+\.json\s*$/m)?.[1]
+  if (dir === undefined) {
+    return []
+  }
+
+  const files: string[] = []
+  for (const line of text.split('\n')) {
+    const [, module, hooks] = line.match(/^\s*❯ (\S+) hooks: (.+)$/) ?? []
+    if (module !== undefined && hooks !== undefined && /ui\.render\{[^}]*component=AbovePrompt/.test(hooks)) {
+      files.push(`${dir}/${module.replace(/^\.\//, '')}`)
+    }
+  }
+  return files
+}
+
+/**
+ * Whether a band hook in this source draws its own tree without keeping the bands
+ * beneath it: it returns something other than `next(...)`, and calls `next` only as
+ * `return next(...)`. A reading of the source, not a run, so a hook registered some
+ * other way goes unseen.
+ */
+export function dropsBands(source: string): boolean {
+  for (const match of source.matchAll(BAND_HOOK)) {
+    const start = (match.index ?? 0) + match[0].length
+    const arrow = source.indexOf('=>', start)
+    const params = source.slice(start, arrow).split(',')
+    const name = params.length >= 3 ? (params[2] ?? '').replace(/[^\w$]/g, '') : ''
+    let open = arrow + 2
+    while (/\s/.test(source[open] ?? '')) {
+      open += 1
+    }
+    if (arrow < 0 || source[open] !== '{') {
+      continue
+    }
+
+    let depth = 0
+    let close = open
+    for (; close < source.length; close += 1) {
+      if (source[close] === '{') {
+        depth += 1
+      } else if (source[close] === '}' && --depth === 0) {
+        break
+      }
+    }
+    const body = source.slice(open, close + 1)
+
+    const isNextCall = (expression: string) => name !== '' && new RegExp(`^(await\\s+)?${name}\\(`).test(expression)
+    const draws = [...body.matchAll(/\breturn\b\s*([^;\n]*)/g)].some(found => !isNextCall(found[1] ?? ''))
+    const keeps =
+      name !== '' &&
+      [...body.matchAll(new RegExp(`\\b${name}\\(`, 'g'))].some(
+        found => !/return\s+(await\s+)?$/.test(body.slice(Math.max(0, (found.index ?? 0) - 20), found.index)),
+      )
+    if (draws && !keeps) {
+      return true
+    }
+  }
+  return false
 }
 
 /** Splits on commas outside braces, so a matcher such as ui.press{plugin=x, element=y} stays whole. */

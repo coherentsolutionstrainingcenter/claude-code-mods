@@ -113,11 +113,16 @@ export function register(on) {
     return draw($.ui.resolve(e), held);
   });
 
-  on("ui.render", { component: "AbovePrompt" }, ($, e, next) => {
+  on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     if (held === null || held.report === null || held.where !== "band") {
       return next(e);
     }
-    return draw($.ui.resolve(e), held);
+    // The held command's card sits above what the hooks beneath drew, so their bands stay.
+    const shown = held;
+    const rest = await next(e);
+    const t = $.ui.resolve(e);
+    const card = draw(t, shown);
+    return rest ? t.Box({ flexDirection: "column", children: [card, rest] }) : card;
   });
 }
 

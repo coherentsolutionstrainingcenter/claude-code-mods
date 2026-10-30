@@ -22,6 +22,8 @@ export type Check = {
   hooks: string[]
   /** Calls the module makes, without the "(via ...)" notes. */
   calls: string[]
+  /** True when a band hook in its source draws without keeping the bands beneath it. */
+  dropsBands: boolean
 }
 
 export type Flag = {

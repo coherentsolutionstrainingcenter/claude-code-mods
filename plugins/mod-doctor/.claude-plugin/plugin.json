@@ -1,6 +1,6 @@
 {
   "name": "mod-doctor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mod doctor audits your installed mods with the plugin validator and flags failed checks, shared tool.call hooks and duplicate names",
   "author": {
     "name": "Igor Waraxe"

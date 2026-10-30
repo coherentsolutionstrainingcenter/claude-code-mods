@@ -125,3 +125,22 @@
 
 ### Not verified
 - Not yet seen in the desktop app's pane.
+
+## 2026-10-30, bands that hide other bands
+
+### Fixed
+- `plugins/replay-theater` 0.1.1: after a turn with edits, its "Replay: N edits" row replaced every band drawn beneath it, so the usage-meter, session-band and other rows vanished. The row now sits above what the hooks beneath drew. The in-band replay view, used only when no pane fits, still takes the band while it is open.
+
+### Added
+- `plugins/mod-doctor` 0.2.0 flags a band above the prompt that draws its own row without keeping the rows beneath it. It reads each band hook's source: a hook that returns its own tree and calls `next` only as `return next(e)` is flagged. A hook written some other way can slip past it.
+- Tests: `plugins/replay-theater/hooks/replay-theater.test.ts` (fails on the old hook, passes on the new one) and `plugins/mod-doctor/hooks/register.test.ts` (4 cases).
+
+### Fixed after the check
+- The new check flagged four more mods that hid the bands beneath them while their own row showed. Each now keeps those rows: `session-band` 0.2.1 and `prompt-queue` 0.4.5 (terminal only) draw them above their own row, which stays right above the prompt; `blast-radius` 0.1.1 draws its held-command card above them; `terminal-pet` 0.1.1 draws them above the pet.
+- A test for each: it draws another band beneath the mod and checks both rows show. Each test fails on the old hook and passes on the new one.
+- The scan now flags no mod in this repo or in `benai-mods`.
+- `prompt-queue`'s existing `tests/e2e` file still does not load under `claude plugin test` (it imports `bun:test`). That was so before.
+
+### Checked
+- `claude plugin validate` and `claude plugin test` pass for all six mods. Type checks show no new errors: mod-doctor keeps its 10, session-band its 4, prompt-queue and terminal-pet have none.
+- Not yet seen in a live session.

@@ -544,6 +544,9 @@ export const register: Register = (on, options) => {
     // runs under the fullscreen renderer, so it cannot clear `turnId`. Deferred
     // past this dispatch, from which a submit would be refused.
     if (!turnId && inFlight === 0 && !e.props.isWorking && !pending && failures < RETRIES) pending = $.clock.after(0, () => flush($))
-    return bandOf($, e)
+    // The bands beneath draw above the queue, so their rows stay.
+    const rest = await next(e)
+    const band = bandOf($, e)
+    return rest ? $.ui.resolve(e).Box({ flexDirection: 'column', children: [rest, band] }) : band
   })
 }

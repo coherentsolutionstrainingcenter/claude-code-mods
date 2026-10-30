@@ -297,6 +297,8 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const s = await read($, stats)
     if (e.props.hasSurvey || s.turn === 0 || (await read($, isHidden))) return next(e)
+    // The bands beneath draw above this row, so the row stays right above the prompt.
+    const rest = await next(e)
 
     const ui = $.ui.resolve(e)
     const { Box, Button, Text } = ui
@@ -324,7 +326,7 @@ export const register: Register = on => {
     const tier = tierFor(e.props.bodyColumns)
     const icon = tier >= 3 ? 18 : 22
 
-    return (
+    const row = (
       <Box
         flexDirection="row"
         alignItems="center"
@@ -366,6 +368,15 @@ export const register: Register = on => {
         </Box>
         <Button key="hide" label="×" role="dismiss" plain dimColor onPress={() => update($, isHidden, () => true)} />
       </Box>
+    )
+
+    return rest ? (
+      <Box flexDirection="column">
+        {rest}
+        {row}
+      </Box>
+    ) : (
+      row
     )
   })
 }
