@@ -5,7 +5,7 @@ Mod doctor audits your installed mods with the plugin validator and flags failed
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install mod-doctor@waraxe-claude-mods
 ```
 

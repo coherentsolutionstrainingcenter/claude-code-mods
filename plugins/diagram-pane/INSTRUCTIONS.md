@@ -5,7 +5,7 @@ A side pane that pins every diagram Claude draws, keeps a live map of the work, 
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install diagram-pane@waraxe-claude-mods
 ```
 

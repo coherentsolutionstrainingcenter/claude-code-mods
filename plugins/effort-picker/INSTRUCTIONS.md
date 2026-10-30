@@ -5,7 +5,7 @@ Picks the reasoning effort for each message you send, for that message only, fro
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install effort-picker@waraxe-claude-mods
 ```
 

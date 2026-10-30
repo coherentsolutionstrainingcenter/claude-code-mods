@@ -32,7 +32,7 @@
     <dd>Claude Code with the hooks engine. The types used here were written by Claude Code 2.1.308. The manifest sets no minimum version.</dd>
   </dl>
 <!-- shipped:start -->
-<div class="note"><strong>In this marketplace:</strong> plugin <code>collision-guard</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install collision-guard@waraxe-claude-mods</code> · folder <a href="../../plugins/collision-guard/">plugins/collision-guard</a> · <a href="../../plugins/collision-guard/INSTRUCTIONS.md">instructions</a></div>
+<div class="note"><strong>In this marketplace:</strong> plugin <code>collision-guard</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods</code>, then <code>claude plugin install collision-guard@waraxe-claude-mods</code> · folder <a href="../../plugins/collision-guard/">plugins/collision-guard</a> · <a href="../../plugins/collision-guard/INSTRUCTIONS.md">instructions</a></div>
 <!-- shipped:end -->
 
   <h2>What it is</h2>
@@ -98,9 +98,9 @@ export const register: Register = on =&gt; {
   <div class="note"><strong>Why the store, not state.</strong> <code>$.store</code> is kept between sessions and hot reloads, so a record written in one chat is still there when a later chat checks. This mod never deletes a record.</div>
 
   <h2>How to use it</h2>
-  <pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+  <pre><code class="language-bash">claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install collision-guard@waraxe-claude-mods</code></pre>
-  <p>The placeholder <code>&lt;owner&gt;/&lt;repo&gt;</code> is not filled in yet. The local marketplace folder has no git remote and no commits, so the real repository name is not known. The README and the source agree on the main behaviour. The README does not mention the fail-open case, or that only the latest editor is remembered.</p>
+  <p>The README and the source agree on the main behaviour. The README does not mention the fail-open case, or that only the latest editor is remembered.</p>
 
   <ul class="steps">
     <li>Run <code>/reload-plugins</code>, or start a new session.</li>

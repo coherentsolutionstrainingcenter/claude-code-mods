@@ -32,7 +32,7 @@
   <dd>macOS, for <code>say</code>, and Claude Code with mod support. Elsewhere the mod loads but shows one toast when it tries to speak.</dd>
 </dl>
 <!-- shipped:start -->
-<div class="note"><strong>In this marketplace:</strong> plugin <code>narrator</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install narrator@waraxe-claude-mods</code> · folder <a href="../../plugins/narrator/">plugins/narrator</a> · <a href="../../plugins/narrator/INSTRUCTIONS.md">instructions</a><br>Needs: macOS (say).</div>
+<div class="note"><strong>In this marketplace:</strong> plugin <code>narrator</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods</code>, then <code>claude plugin install narrator@waraxe-claude-mods</code> · folder <a href="../../plugins/narrator/">plugins/narrator</a> · <a href="../../plugins/narrator/INSTRUCTIONS.md">instructions</a><br>Needs: macOS (say).</div>
 <!-- shipped:end -->
 
 <h2>What it is</h2>
@@ -151,9 +151,8 @@ function tail(words: string): string {
 </div>
 
 <h2>How to use it</h2>
-<pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+<pre><code class="language-bash">claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install narrator@waraxe-claude-mods</code></pre>
-<p>Replace <code>&lt;owner&gt;/&lt;repo&gt;</code> with the GitHub repository once it is published. The local marketplace folder has no git remote yet, and the root README uses the same placeholder.</p>
 
 <ul class="steps">
   <li>Type <code>/narrator on</code>. Narrator confirms that it is on.</li>

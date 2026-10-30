@@ -5,7 +5,7 @@ Claude assigns you the tasks only you can do. They wait in a My tasks pane, coun
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install human-in-the-loop@waraxe-claude-mods
 ```
 

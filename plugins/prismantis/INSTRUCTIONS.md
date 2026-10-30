@@ -5,7 +5,7 @@ Colorful, themeable rendering for Claude Code replies: tables, headings, code, n
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install prismantis@waraxe-claude-mods
 ```
 

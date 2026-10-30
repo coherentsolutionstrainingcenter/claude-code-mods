@@ -12,7 +12,7 @@ It holds, by default:
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install spend-guard@waraxe-claude-mods
 ```
 

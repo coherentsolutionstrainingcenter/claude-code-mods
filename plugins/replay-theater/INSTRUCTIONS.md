@@ -5,7 +5,7 @@ Replay Theater: step through the file edits Claude made in the last turn, one di
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install replay-theater@waraxe-claude-mods
 ```
 

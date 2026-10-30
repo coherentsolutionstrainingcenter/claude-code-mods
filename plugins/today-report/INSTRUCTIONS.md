@@ -5,7 +5,7 @@ Today's Report: totals your Claude Code tasks, the time they would have taken yo
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install today-report@waraxe-claude-mods
 ```
 

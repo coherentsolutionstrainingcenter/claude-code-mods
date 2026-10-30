@@ -5,7 +5,7 @@ Band above the prompt: turn number, output speed, turn and session cost, prompt 
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install session-band@waraxe-claude-mods
 ```
 

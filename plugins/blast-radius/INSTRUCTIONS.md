@@ -5,7 +5,7 @@ Holds risky shell commands (rm -rf, git reset --hard, git clean, force push, mig
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install blast-radius@waraxe-claude-mods
 ```
 

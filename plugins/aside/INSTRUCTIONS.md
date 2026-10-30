@@ -5,7 +5,7 @@ Read-only side chat: /aside opens a pane beside the transcript where you ask abo
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install aside@waraxe-claude-mods
 ```
 

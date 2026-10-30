@@ -5,7 +5,7 @@ Turns what you teach Claude into project notes, catches its usual slips, keeps t
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install ctx-handoff@waraxe-claude-mods
 ```
 

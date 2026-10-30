@@ -5,7 +5,7 @@ Bounces vague prompts before Claude sees them, and suggests the project's own te
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install prompt-bouncer@waraxe-claude-mods
 ```
 

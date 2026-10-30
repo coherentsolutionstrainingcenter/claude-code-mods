@@ -5,7 +5,7 @@
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install recording-mode@waraxe-claude-mods
 ```
 

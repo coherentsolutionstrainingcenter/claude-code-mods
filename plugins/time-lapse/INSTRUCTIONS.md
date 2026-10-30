@@ -5,7 +5,7 @@ Time-lapse: records your session's prompts, tool calls and turn times, and repla
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install time-lapse@waraxe-claude-mods
 ```
 

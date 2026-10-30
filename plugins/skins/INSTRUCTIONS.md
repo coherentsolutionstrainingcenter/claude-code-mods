@@ -5,7 +5,7 @@ Skins for Claude Code: tool rows that open onto their input and answer, highligh
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install skins@waraxe-claude-mods
 ```
 

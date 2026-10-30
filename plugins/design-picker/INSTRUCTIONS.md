@@ -5,7 +5,7 @@ When Claude asks you to choose a design style, opens a page in your browser that
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install design-picker@waraxe-claude-mods
 ```
 

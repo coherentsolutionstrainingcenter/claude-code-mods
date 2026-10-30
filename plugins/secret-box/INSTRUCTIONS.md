@@ -5,7 +5,7 @@ Claude can use a secret without seeing it: a masked box saves keys to .env and g
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install secret-box@waraxe-claude-mods
 ```
 

@@ -5,7 +5,7 @@ Copies the files an rm is about to delete into a backup folder first, so /undo-d
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install delete-backup@waraxe-claude-mods
 ```
 

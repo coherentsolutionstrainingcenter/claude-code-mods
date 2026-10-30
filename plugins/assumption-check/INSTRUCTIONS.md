@@ -5,7 +5,7 @@ After a reply, lists the small guesses Claude made. Mark each Right or Wrong, an
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install assumption-check@waraxe-claude-mods
 ```
 

@@ -5,7 +5,7 @@ A Claude Code mod that keeps the one-hour prompt cache warm during breaks and st
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install cache-tax@waraxe-claude-mods
 ```
 

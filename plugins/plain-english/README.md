@@ -9,7 +9,7 @@ Claude's own reply is never changed, and the rewrite is never sent to the main c
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install plain-english@waraxe-claude-mods
 ```
 

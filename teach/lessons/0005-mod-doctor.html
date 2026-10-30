@@ -32,7 +32,7 @@
   <dd>The <code>claude</code> CLI on the PATH. The mod runs it by name.</dd>
 </dl>
 <!-- shipped:start -->
-<div class="note"><strong>In this marketplace:</strong> plugin <code>mod-doctor</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install mod-doctor@waraxe-claude-mods</code> · folder <a href="../../plugins/mod-doctor/">plugins/mod-doctor</a> · <a href="../../plugins/mod-doctor/INSTRUCTIONS.md">instructions</a><br>Needs: the claude command on the PATH.</div>
+<div class="note"><strong>In this marketplace:</strong> plugin <code>mod-doctor</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods</code>, then <code>claude plugin install mod-doctor@waraxe-claude-mods</code> · folder <a href="../../plugins/mod-doctor/">plugins/mod-doctor</a> · <a href="../../plugins/mod-doctor/INSTRUCTIONS.md">instructions</a><br>Needs: the claude command on the PATH.</div>
 <!-- shipped:end -->
 
 <h2>What it is</h2>
@@ -150,8 +150,8 @@ async function audit($: EngineInterface): Promise&lt;void&gt; {
 <p>The guard reads the state, checks it, and then writes <em>reading</em>. Those are separate awaits. Two presses that both read <em>idle</em> before either write could both start a run. The engine's <code>update</code> retries when the version has changed, but that protects the write, not the check before it. The likely effect is two runs, each writing a full result. The source does not fix this, and I did not change it.</p></div>
 
 <h2>How to use it</h2>
-<p>Install it from the marketplace. Replace <code>&lt;owner&gt;/&lt;repo&gt;</code> with the GitHub repository that holds the marketplace. The marketplace folder has no git remote, so I could not fill it in.</p>
-<pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+<p>Install it from the marketplace.</p>
+<pre><code class="language-bash">claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install mod-doctor@waraxe-claude-mods</code></pre>
 <ul class="steps">
   <li>Type <code>/mod-doctor</code>. The handler ignores any arguments. The pane opens and the audit starts.</li>

@@ -5,7 +5,7 @@ A small text pet in the band above the prompt that eats the files Claude reads, 
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install terminal-pet@waraxe-claude-mods
 ```
 

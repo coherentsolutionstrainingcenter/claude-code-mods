@@ -5,7 +5,7 @@ Scores every skill against your prompt with TypeSafe Jev as you type; observe, b
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install jev-skill-suggestion@waraxe-claude-mods
 ```
 

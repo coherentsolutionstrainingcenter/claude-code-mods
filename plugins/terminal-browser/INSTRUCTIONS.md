@@ -5,7 +5,7 @@ A browser running directly inside claude code. Preview websites, view HTML docum
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install terminal-browser@waraxe-claude-mods
 ```
 

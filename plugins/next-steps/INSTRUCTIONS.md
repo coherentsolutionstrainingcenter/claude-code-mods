@@ -5,7 +5,7 @@ After each turn, 2 or 3 likely next prompts above the prompt. Press 1, 2 or 3 in
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install next-steps@waraxe-claude-mods
 ```
 

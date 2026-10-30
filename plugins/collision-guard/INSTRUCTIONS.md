@@ -5,7 +5,7 @@ Asks before Edit or Write changes a file that another chat edited in the last 30
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install collision-guard@waraxe-claude-mods
 ```
 

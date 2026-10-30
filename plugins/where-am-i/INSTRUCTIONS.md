@@ -5,7 +5,7 @@ A live recap above the prompt: goal, doing now, waiting on you, next. /where for
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install where-am-i@waraxe-claude-mods
 ```
 

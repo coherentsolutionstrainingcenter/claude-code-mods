@@ -5,7 +5,7 @@ When Claude ends a reply with a question, explains the choice in a side pane and
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install decision-tree@waraxe-claude-mods
 ```
 

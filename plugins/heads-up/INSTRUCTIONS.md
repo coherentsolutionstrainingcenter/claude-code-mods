@@ -5,7 +5,7 @@ After a long turn, one Haiku call flags up to two things you might miss, in a ba
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install heads-up@waraxe-claude-mods
 ```
 

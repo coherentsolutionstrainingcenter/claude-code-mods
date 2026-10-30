@@ -5,7 +5,7 @@ A /heatmap pane that counts this repository's tracked files by top-level folder 
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install repo-heatmap@waraxe-claude-mods
 ```
 

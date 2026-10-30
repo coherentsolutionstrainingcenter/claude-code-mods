@@ -5,7 +5,7 @@ Snake in a pane while Claude works, paused when it's done. Opt-in, so nothing op
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install snake@waraxe-claude-mods
 ```
 

@@ -5,7 +5,7 @@ Asks Proceed or Cancel, with a short checklist, before a command or MCP tool tha
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install spend-guard@waraxe-claude-mods
 ```
 

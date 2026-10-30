@@ -14,6 +14,8 @@ import pathlib
 import re
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+# The GitHub repository that holds this marketplace, as `claude plugin marketplace add` takes it.
+REPO = "coherentsolutionstrainingcenter/claude-code-mods"
 TEACH = ROOT / "teach"
 LESSONS = TEACH / "lessons"
 rows = json.load(open(ROOT / "docs" / "plugins.json"))
@@ -35,7 +37,8 @@ def shipped_box(r):
         '<!-- shipped:start -->\n<div class="note"><strong>In this marketplace:</strong> '
         f'plugin <code>{r["plugin"]}</code> {html.escape(pj.get("version", ""))}, '
         f'by {html.escape(r["author"])}, {html.escape(r["license"])}{up}.<br>'
-        f'Install: <code>claude plugin install {r["plugin"]}@waraxe-claude-mods</code> · '
+        f'Install: <code>claude plugin marketplace add {REPO}</code>, then '
+        f'<code>claude plugin install {r["plugin"]}@waraxe-claude-mods</code> · '
         f'folder <a href="../../plugins/{r["plugin"]}/">plugins/{r["plugin"]}</a> · '
         f'<a href="../../plugins/{r["plugin"]}/INSTRUCTIONS.md">instructions</a>{needs}</div>\n<!-- shipped:end -->'
     )
@@ -93,7 +96,7 @@ def write_plugin_docs():
             f"{pj.get('description', '')}\n\n"
             "## Install\n\n"
             "```bash\n"
-            "claude plugin marketplace add <org>/waraxe-claude-mods\n"
+            f"claude plugin marketplace add {REPO}\n"
             f"claude plugin install {r['plugin']}@waraxe-claude-mods\n"
             "```\n\n"
             "Then open a new chat. Mods load when a chat starts.\n\n"
@@ -201,6 +204,8 @@ def write_readme():
 
 Our internal Claude Code marketplace: 43 mods you can install, and a course that explains how each one is built. Shared inside our GitHub organization only.
 
+The repository is [{REPO}](https://github.com/{REPO}). The marketplace inside it is named `waraxe-claude-mods`, so you add the repository once and then install each mod as `<plugin>@waraxe-claude-mods`.
+
 - **Mods:** `plugins/`, one folder per mod. Each holds a README, a LICENSE, `INSTRUCTIONS.md` (install and use) and `EXPLANATION.md` (how it works, with a link to its lesson).
 - **Course:** open `teach/index.html`. There are 43 lessons, one per mod, ordered by tier so the most useful mods come first.
 - **Review:** `docs/MODS-FINAL-SYNTHESIS.md` ranks the 109 mods found in the videos and guides. `docs/plugins.json` maps every lesson to its plugin and source.
@@ -210,11 +215,13 @@ Our internal Claude Code marketplace: 43 mods you can install, and a course that
 The repository is private to the organization. Members need read access and git credentials on their machine (`gh auth login`, or an SSH key).
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add {REPO}
 claude plugin install <plugin>@waraxe-claude-mods
 ```
 
 Then open a new chat. Mods need Claude Code 2.1.287 or later, with mods turned on for your account. To update: `claude plugin marketplace update waraxe-claude-mods`, then `claude plugin update <plugin>@waraxe-claude-mods`.
+
+**"Repository not found"?** Git is using a GitHub account outside the organization. GitHub answers "not found" for a private repository you can't see. Run `gh auth status` to see your accounts, then `gh auth switch --user <your organization account>` and add the marketplace again.
 
 ## The 43 mods, in tier order
 

@@ -5,7 +5,7 @@ Tidies long messages that look dictated, then asks whether to send the cleaned v
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install dictation-fixer@waraxe-claude-mods
 ```
 

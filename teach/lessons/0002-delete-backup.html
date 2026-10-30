@@ -24,7 +24,7 @@
   <dt>Requires</dt><dd><code>bash</code>, <code>cp</code>, <code>mkdir</code> and <code>rm</code> on the machine, and a <code>HOME</code> variable. Written against the API in <code>claude-code.d.ts</code>, which Claude Code 2.1.308 wrote.</dd>
 </dl>
 <!-- shipped:start -->
-<div class="note"><strong>In this marketplace:</strong> plugin <code>delete-backup</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install delete-backup@waraxe-claude-mods</code> · folder <a href="../../plugins/delete-backup/">plugins/delete-backup</a> · <a href="../../plugins/delete-backup/INSTRUCTIONS.md">instructions</a></div>
+<div class="note"><strong>In this marketplace:</strong> plugin <code>delete-backup</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods</code>, then <code>claude plugin install delete-backup@waraxe-claude-mods</code> · folder <a href="../../plugins/delete-backup/">plugins/delete-backup</a> · <a href="../../plugins/delete-backup/INSTRUCTIONS.md">instructions</a></div>
 <!-- shipped:end -->
 
 <h2>What it is</h2>
@@ -193,9 +193,9 @@
 <div class="note"><strong>A partial restore repeats.</strong> If one item fails, the next <code>/undo-delete</code> restores the same newest backup. The items that already came back now show as existing, so they are reported as failed again. The README describes the same result.</div>
 
 <h2>How to use it</h2>
-<pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+<pre><code class="language-bash">claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install delete-backup@waraxe-claude-mods</code></pre>
-<p>Replace <code>&lt;owner&gt;/&lt;repo&gt;</code> with the GitHub path of the marketplace. The source does not give that path.</p>
+<p>The source does not give that path.</p>
 <ul class="steps">
   <li><strong>Work as usual.</strong> Run Bash commands as you normally would. Before an rm runs, its existing targets are copied. A Bash call with an rm the hook cannot place is denied, and the reason is shown.</li>
   <li><strong>Undo the newest deletion.</strong> Run <code>/undo-delete</code>. It puts the newest complete backup back at its original paths and lists what it restored.</li>

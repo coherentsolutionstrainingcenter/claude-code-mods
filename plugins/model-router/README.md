@@ -9,7 +9,7 @@ Each pick shows one dim line in the transcript, for example `Model router: "Refa
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install model-router@waraxe-claude-mods
 ```
 

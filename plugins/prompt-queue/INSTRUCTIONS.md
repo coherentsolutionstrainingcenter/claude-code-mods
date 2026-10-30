@@ -5,7 +5,7 @@ A prompt typed while Claude is working is held in a stack above the prompt inste
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install prompt-queue@waraxe-claude-mods
 ```
 

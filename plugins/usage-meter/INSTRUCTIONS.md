@@ -5,7 +5,7 @@ Your plan's 5-hour and 7-day usage as small bars above the prompt, with the rese
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install usage-meter@waraxe-claude-mods
 ```
 

@@ -2,6 +2,8 @@
 
 Our internal Claude Code marketplace: 43 mods you can install, and a course that explains how each one is built. Shared inside our GitHub organization only.
 
+The repository is [coherentsolutionstrainingcenter/claude-code-mods](https://github.com/coherentsolutionstrainingcenter/claude-code-mods). The marketplace inside it is named `waraxe-claude-mods`, so you add the repository once and then install each mod as `<plugin>@waraxe-claude-mods`.
+
 - **Mods:** `plugins/`, one folder per mod. Each holds a README, a LICENSE, `INSTRUCTIONS.md` (install and use) and `EXPLANATION.md` (how it works, with a link to its lesson).
 - **Course:** open `teach/index.html`. There are 43 lessons, one per mod, ordered by tier so the most useful mods come first.
 - **Review:** `docs/MODS-FINAL-SYNTHESIS.md` ranks the 109 mods found in the videos and guides. `docs/plugins.json` maps every lesson to its plugin and source.
@@ -11,11 +13,13 @@ Our internal Claude Code marketplace: 43 mods you can install, and a course that
 The repository is private to the organization. Members need read access and git credentials on their machine (`gh auth login`, or an SSH key).
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install <plugin>@waraxe-claude-mods
 ```
 
 Then open a new chat. Mods need Claude Code 2.1.287 or later, with mods turned on for your account. To update: `claude plugin marketplace update waraxe-claude-mods`, then `claude plugin update <plugin>@waraxe-claude-mods`.
+
+**"Repository not found"?** Git is using a GitHub account outside the organization. GitHub answers "not found" for a private repository you can't see. Run `gh auth status` to see your accounts, then `gh auth switch --user <your organization account>` and add the marketplace again.
 
 ## The 43 mods, in tier order
 

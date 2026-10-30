@@ -99,6 +99,13 @@
 ### Changed
 - `.gitignore` now ignores `logs/`, where local tool-call hooks write their logs.
 - Shared as the internal repo `coherentsolutionstrainingcenter/claude-code-mods`. Forking is off and `main` needs one approving review.
+- Install lines now name the real repository. You add it once with `claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods`, then install each mod as `<plugin>@waraxe-claude-mods` (the marketplace name). Updated in the README, every `INSTRUCTIONS.md`, our own READMEs and all lessons. Each lesson's "In this marketplace" box now has both lines. `scripts/generate.py` holds the path in one `REPO` constant.
+- Removed 22 lesson sentences that said the repository path was not known yet.
+- README: a "Repository not found" note. GitHub gives that answer for a private repository when git uses an account outside the organization.
+
+### Checked
+- Added the marketplace from GitHub and installed all 43 mods in an isolated config (`CLAUDE_CONFIG_DIR`), using the organization account: 43 installed and enabled. With the personal account active, GitHub answers "repository not found".
+- `claude plugin validate`: the marketplace and all 43 plugins pass. All local links in the course resolve.
 
 ## 2026-10-30, today-report chart
 

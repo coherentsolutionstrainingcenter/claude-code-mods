@@ -5,7 +5,7 @@ Keeps the failing tests from your last test run in a Failing tests pane, with Fi
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install test-fail-magnet@waraxe-claude-mods
 ```
 

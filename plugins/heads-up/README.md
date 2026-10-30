@@ -16,7 +16,7 @@ It is our own small version of the built-in You Should Know (`cc-plugin-you-shou
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install heads-up@waraxe-claude-mods
 ```
 

@@ -5,7 +5,7 @@ While on, rewrites each long reply in plain language with a short Next steps lis
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install plain-english@waraxe-claude-mods
 ```
 

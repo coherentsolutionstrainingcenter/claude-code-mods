@@ -5,7 +5,7 @@ One small Claude Code challenge each day in a /challenge pane, with Coach me, Do
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install daily-challenge@waraxe-claude-mods
 ```
 

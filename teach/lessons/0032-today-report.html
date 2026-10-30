@@ -25,7 +25,7 @@
   <dt>Settings</dt><dd><code>minutesPerTask</code> (number, default 10, 1 to 240) and <code>hourlyRate</code> (number, default 50, minimum 0)</dd>
 </dl>
 <!-- shipped:start -->
-<div class="note"><strong>In this marketplace:</strong> plugin <code>today-report</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin install today-report@waraxe-claude-mods</code> · folder <a href="../../plugins/today-report/">plugins/today-report</a> · <a href="../../plugins/today-report/INSTRUCTIONS.md">instructions</a><br>Needs: python3.</div>
+<div class="note"><strong>In this marketplace:</strong> plugin <code>today-report</code> 0.1.0, by Igor Waraxe, MIT.<br>Install: <code>claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods</code>, then <code>claude plugin install today-report@waraxe-claude-mods</code> · folder <a href="../../plugins/today-report/">plugins/today-report</a> · <a href="../../plugins/today-report/INSTRUCTIONS.md">instructions</a><br>Needs: python3.</div>
 <!-- shipped:end -->
 
 <h2>What it is</h2>
@@ -147,9 +147,8 @@ async function refresh($: EngineInterface): Promise&lt;void&gt; {
 <div class="note"><strong>The Total covers shown rows only.</strong> The Total line adds up only the rows the chosen period shows. On the day view, that is the latest 14 days, not your full history. The <code>in</code> figure adds cache reads and cache writes to input tokens.</div>
 
 <h2>How to use it</h2>
-<pre><code class="language-bash">claude plugin marketplace add &lt;owner&gt;/&lt;repo&gt;
+<pre><code class="language-bash">claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install today-report@waraxe-claude-mods</code></pre>
-<p>The <code>&lt;owner&gt;/&lt;repo&gt;</code> part is a placeholder. The source does not give the marketplace's GitHub path.</p>
 <ul class="steps">
   <li><strong>Open it.</strong> Run <code>/today-report</code>. The pane opens and a read starts at once.</li>
   <li><strong>Pick a period.</strong> Choose day, week, month or year. The chosen period shows in brackets.</li>

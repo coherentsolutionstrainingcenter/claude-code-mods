@@ -5,7 +5,7 @@ Reads the last 240 characters of each finished reply aloud with macOS say, off b
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install narrator@waraxe-claude-mods
 ```
 

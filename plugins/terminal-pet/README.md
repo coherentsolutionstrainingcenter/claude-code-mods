@@ -16,7 +16,7 @@ Beside the face it says what the pet is doing, for example `Pip is eating regist
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install terminal-pet@waraxe-claude-mods
 ```
 

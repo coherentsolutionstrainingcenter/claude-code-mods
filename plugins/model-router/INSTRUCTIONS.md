@@ -5,7 +5,7 @@ Picks haiku, sonnet or opus for each subagent Claude starts without naming a mod
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install model-router@waraxe-claude-mods
 ```
 

@@ -5,7 +5,7 @@ claude-reflect as a Claude Code mod: a model check on each short prompt finds re
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install reflect-mod@waraxe-claude-mods
 ```
 

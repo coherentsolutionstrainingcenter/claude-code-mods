@@ -5,7 +5,7 @@ Progress bar above the prompt for /savvy-flow, plus an agents panel (/agents-inf
 ## Install
 
 ```bash
-claude plugin marketplace add <org>/waraxe-claude-mods
+claude plugin marketplace add coherentsolutionstrainingcenter/claude-code-mods
 claude plugin install savvy-progress@waraxe-claude-mods
 ```
 
