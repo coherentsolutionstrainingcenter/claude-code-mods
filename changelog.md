@@ -99,3 +99,22 @@
 ### Changed
 - `.gitignore` now ignores `logs/`, where local tool-call hooks write their logs.
 - Shared as the internal repo `coherentsolutionstrainingcenter/claude-code-mods`. Forking is off and `main` needs one approving review.
+
+## 2026-10-30, today-report chart
+
+### Changed
+- `plugins/today-report` 0.2.0: the pane now draws a chart of tasks per day, week, month or year. Each column is stacked by task type (code changes, commands, research, delegated, conversation), oldest period on the left. Hovering a column or a segment shows its tasks, hours and value. The rows with the exact numbers stay below the chart.
+- The terminal cannot draw an `Svg`, so there the pane shows one line of block-character bars instead.
+- The colors are the first five slots of the dataviz reference palette, in light and dark versions. Its validator passes both modes. Three light colors are under 3:1 contrast, so the legend and the rows carry the numbers. Labels and gridlines are one mid gray, because the chart is drawn as an image whose color scheme may not match the pane's.
+- Version 0.2.0 in `plugin.json` and `.claude-plugin/marketplace.json`.
+
+### Added
+- `plugins/today-report/hooks/register.test.tsx`: draws the pane from a two-day report on desktop, vscode, mobile and terminal.
+
+### Checked
+- `claude plugin validate` and `claude plugin test` (1 test) pass.
+- The chart, drawn from the real logs (109 days) in headless Chrome on a white and a dark background, for all four periods.
+- Type check: no errors in the new code. Three earlier errors remain in `refresh()`, where `status: 'reading'` and the like widen to `string` in the `update` calls.
+
+### Not verified
+- Not yet seen in the desktop app's pane.

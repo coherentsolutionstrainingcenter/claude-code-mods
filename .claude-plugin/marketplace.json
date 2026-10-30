@@ -353,7 +353,7 @@
       "name": "today-report",
       "source": "./plugins/today-report",
       "description": "Today's Report: totals your Claude Code tasks, the time they would have taken you, and tokens by day, week, month and year, from your session logs",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Igor Waraxe"
       },

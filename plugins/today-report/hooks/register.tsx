@@ -7,6 +7,25 @@ const PANE = 'today-report'
 const PERIODS: Period[] = ['day', 'week', 'month', 'year']
 const ROWS: Record<Period, number> = { day: 14, week: 12, month: 12, year: 5 }
 
+// The task types scripts/aggregate.py counts, in a fixed order with a light and a
+// dark color each: a type keeps its color whichever types a period has.
+const TYPES = [
+  { name: 'code changes', light: '#2a78d6', dark: '#3987e5' },
+  { name: 'commands', light: '#eb6834', dark: '#d95926' },
+  { name: 'research', light: '#1baf7a', dark: '#199e70' },
+  { name: 'delegated', light: '#eda100', dark: '#c98500' },
+  { name: 'conversation', light: '#e87ba4', dark: '#d55181' },
+]
+// The chart is drawn as an image, whose color scheme need not match the pane's, so its
+// labels and grid are one mid gray that reads on a light or a dark pane.
+const CHART_CSS = `<style>
+.s{fill:#898781}.n{font-variant-numeric:tabular-nums}.g{stroke:#898781;stroke-opacity:.25}.a{stroke:#898781;stroke-opacity:.6}
+.h{fill:#898781;fill-opacity:0}.col:hover .h{fill-opacity:.12}
+${TYPES.map((type, i) => `.c${i}{fill:${type.light}}`).join('')}
+@media (prefers-color-scheme: dark){${TYPES.map((type, i) => `.c${i}{fill:${type.dark}}`).join('')}}
+</style>`
+const SPARKS = '▁▂▃▄▅▆▇█'
+
 const view = atom(
   { plugin: 'today-report', key: 'view' } as const,
   {
@@ -37,7 +56,11 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Button, Text } = $.ui.resolve(e)
+    const ui = $.ui.resolve(e)
+    const { Box, Button, Text } = ui
+    // The terminal draws no Svg, so it gets a line of text bars instead of the chart.
+    const Svg = e.surface !== 'terminal' && 'Svg' in ui ? ui.Svg : null
+    const width = Math.max(240, Math.min(900, (e.props.bodyColumns || 60) * 8 - 8))
     const current = await read($, view)
 
     return (
@@ -56,7 +79,7 @@ export const register: Register = on => {
             onPress={() => void refresh($)}
           />
         </Box>
-        {body(current, Box, Text)}
+        {body(current, Box, Text, Svg, width)}
       </Box>
     )
   })
@@ -93,7 +116,7 @@ function setting(rows: readonly { key: string; value: unknown }[], key: string, 
   return typeof value === 'number' ? value : fallback
 }
 
-function body(current: View, Box: any, Text: any) {
+function body(current: View, Box: any, Text: any, Svg: any, width: number) {
   if (current.status === 'idle') {
     return <Text dimColor>Press Refresh to read your session logs.</Text>
   }
@@ -115,6 +138,17 @@ function body(current: View, Box: any, Text: any) {
         Total: {all.tasks} tasks, about {hours.toFixed(1)} h saved, ${Math.round(hours * current.hourlyRate)}
       </Text>
       {rows.length === 0 && <Text dimColor>No Claude Code sessions found in ~/.claude/projects.</Text>}
+      {rows.length > 0 &&
+        (Svg ? (
+          <Box flexDirection="column">
+            <Text bold>Tasks per {current.period}</Text>
+            <Svg {...chart(rows, current, width)} width={width} isInteractive />
+          </Box>
+        ) : (
+          <Text>
+            Tasks per {current.period}, oldest first: {spark(rows)}
+          </Text>
+        ))}
       {rows.map(([label, data]) => (
         <Box key={label} flexDirection="column">
           <Text>
@@ -139,6 +173,112 @@ function body(current: View, Box: any, Text: any) {
       )}
     </Box>
   )
+}
+
+/**
+ * A column per period, oldest on the left, stacked by task type. Hovering a column
+ * or a segment names its totals; the rows below the chart hold the same numbers.
+ */
+function chart(rows: [string, DayTotals][], current: View, W: number): { source: string; alt: string; height: number } {
+  const bars = [...rows].reverse()
+  const textWidth = (text: string) => text.length * 6.2
+
+  // The legend flows left to right and wraps at the width.
+  const legend: string[] = []
+  let x = 0
+  let y = 12
+  TYPES.forEach((type, i) => {
+    const w = 14 + textWidth(type.name)
+    if (x > 0 && x + w > W) {
+      x = 0
+      y += 18
+    }
+    legend.push(`<rect class="c${i}" x="${x}" y="${y - 9}" width="10" height="10" rx="2"/>`)
+    legend.push(`<text class="s" x="${x + 14}" y="${y}">${type.name}</text>`)
+    x += w + 14
+  })
+
+  const left = 36
+  const top = y + 18
+  const base = top + 150
+  const height = base + 22
+  const max = Math.max(1, ...bars.map(([, data]) => data.tasks))
+  const step = niceStep(max / 4)
+  const yMax = Math.ceil(max / step) * step
+  const scale = (n: number) => (n / yMax) * (base - top)
+
+  const grid: string[] = []
+  for (let value = 0; value <= yMax; value += step) {
+    const gy = px(base - scale(value))
+    grid.push(`<line class="${value === 0 ? 'a' : 'g'}" x1="${left}" x2="${W}" y1="${gy}" y2="${gy}"/>`)
+    grid.push(`<text class="s n" x="${left - 6}" y="${gy + 4}" text-anchor="end">${value}</text>`)
+  }
+
+  const slot = (W - left) / bars.length
+  const barW = Math.min(36, slot * 0.6)
+  const short = (label: string) => label.replace('week of ', '').replace(/^\d{4}-(\d\d-\d\d)$/, '$1')
+  // Label every n-th column, counted back from the newest, so labels never overlap.
+  const every = Math.ceil((Math.max(...bars.map(([label]) => textWidth(short(label)))) + 8) / slot)
+
+  const columns = bars.map(([label, data], i) => {
+    const cx = left + slot * i + slot / 2
+    const bx = px(cx - barW / 2)
+    const hours = (data.tasks * current.minutesPerTask) / 60
+    const tip = `${label}: ${data.tasks} tasks, ${hours.toFixed(1)} h, $${Math.round(hours * current.hourlyRate)}`
+    const shown = TYPES.map((type, k) => ({ type, k, n: data.categories[type.name] ?? 0 })).filter(({ n }) => n > 0)
+    const parts = [`<rect class="h" x="${px(left + slot * i)}" y="${top}" width="${px(slot)}" height="${base - top}"><title>${tip}</title></rect>`]
+
+    let below = 0
+    shown.forEach(({ type, k, n }, j) => {
+      const yTop = px(base - scale(below + n))
+      // A 2px gap separates each segment from the one beneath it.
+      const h = px(scale(n) - (j > 0 ? 2 : 0))
+      below += n
+      if (h <= 0) {
+        return
+      }
+      const shape = j === shown.length - 1 ? roundedTop(bx, yTop, px(barW), h) : `<rect x="${bx}" y="${yTop}" width="${px(barW)}" height="${h}"/>`
+      parts.push(`<g class="c${k}"><title>${tip}. ${type.name}: ${n}</title>${shape}</g>`)
+    })
+
+    if ((bars.length - 1 - i) % every === 0) {
+      parts.push(`<text class="s n" x="${px(cx)}" y="${base + 16}" text-anchor="middle">${short(label)}</text>`)
+    }
+    return `<g class="col">${parts.join('')}</g>`
+  })
+
+  const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${height}" viewBox="0 0 ${W} ${height}" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11">
+${CHART_CSS}
+${legend.join('')}
+${grid.join('')}
+${columns.join('')}
+</svg>`
+  const alt = `Tasks per ${current.period}, ${bars[0]?.[0]} to ${rows[0]?.[0]}: ${bars.map(([, data]) => data.tasks).join(', ')}`
+
+  return { source, alt, height }
+}
+
+/** A bar with its top corners rounded, anchored to the baseline. */
+function roundedTop(x: number, y: number, w: number, h: number): string {
+  const r = px(Math.min(4, h, w / 2))
+  return `<path d="M${x} ${px(y + h)}V${px(y + r)}Q${x} ${y} ${px(x + r)} ${y}H${px(x + w - r)}Q${px(x + w)} ${y} ${px(x + w)} ${px(y + r)}V${px(y + h)}Z"/>`
+}
+
+/** The axis step: 1, 2 or 5 times a power of ten, at least `raw`. */
+function niceStep(raw: number): number {
+  const power = 10 ** Math.floor(Math.log10(Math.max(raw, 1)))
+  return ([1, 2, 5, 10].find(unit => unit * power >= raw) ?? 10) * power
+}
+
+function px(n: number): number {
+  return Math.round(n * 10) / 10
+}
+
+/** Tasks per period as one line of block characters, oldest first, for the terminal. */
+function spark(rows: [string, DayTotals][]): string {
+  const counts = rows.map(([, data]) => data.tasks).reverse()
+  const max = Math.max(1, ...counts)
+  return counts.map(n => SPARKS[Math.round((n / max) * (SPARKS.length - 1))]).join('')
 }
 
 /** Groups the days into the periods shown, newest first, and keeps the latest few. */
