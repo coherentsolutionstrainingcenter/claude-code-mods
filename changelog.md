@@ -107,6 +107,18 @@
 - Added the marketplace from GitHub and installed all 43 mods in an isolated config (`CLAUDE_CONFIG_DIR`), using the organization account: 43 installed and enabled. With the personal account active, GitHub answers "repository not found".
 - `claude plugin validate`: the marketplace and all 43 plugins pass. All local links in the course resolve.
 
+## 2026-10-30, user-level setup
+
+### Changed (in `~/.claude`, not in this repository)
+- prismantis theme set to `github-light` in `~/.claude/settings.json` (`pluginConfigs."prismantis@waraxe-claude-mods".options.theme`). The default dark theme drew dark text on a dark reply fill in the desktop app's light mode.
+- Installed `session-band@waraxe-claude-mods` 0.2.0 at user scope, ahead of the rest of tier 6. It brings back an always-on prompt cache countdown above the prompt. That countdown had come from `cache-clock@benai-mods`, which stays installed but disabled; cache-tax shows its row only while `/keepwarm` is armed.
+- `settings.json` and `installed_plugins.json` were backed up to the session scratchpad before each change.
+- Re-enabled `mods@benai-mods` 0.3.0, the Ben AI Mods pane that lists the mods on this Mac. It had been disabled with the other replaced benai mods, and `/mods` then opened `mod-store@waraxe-claude-mods` instead. Both now register `/mods`. The pane's On/Off switch only works for mods that read its `switches.json` (the benai ones), so waraxe mods are turned on and off with `/plugin`.
+
+### Not verified
+- None of these changes has been seen in a new session yet. The mods read their settings when they load.
+- Which `/mods` runs, or whether both open, while both plugins are enabled.
+
 ## 2026-10-30, today-report chart
 
 ### Changed
