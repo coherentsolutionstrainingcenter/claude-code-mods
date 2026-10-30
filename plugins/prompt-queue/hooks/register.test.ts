@@ -19,3 +19,23 @@ test('the queue keeps the bands drawn beneath it', async ($, on) => {
   expect((await ui.find({ type: 'Text', text: /beneath band/ }))?.text).toBe('beneath band')
   await ui.unmount()
 })
+
+test('the queue leaves out Claude Code’s placeholder when nothing is drawn beneath it', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  on('turn.start', () => ({ turnId: 't1' }) as never)
+  // With no band beneath, next(e) answers Claude Code's own drawing of the band.
+  on('ui.render', () => ({ type: 'engine', ref: 0 }) as never)
+
+  await $.turn.start({ turnId: 't1' } as never)
+  await $.command.run({ command: 'q', args: 'later please', presentation: { isFullscreen: false } } as never)
+
+  const ui = await $.ui.mount({
+    plugin: 'prompt-queue',
+    surface: 'terminal',
+    component: 'AbovePrompt',
+    props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 100 } as never,
+  })
+  expect(await ui.find({ type: 'Text', text: /later please/ })).toBeDefined()
+  expect(JSON.stringify(await ui.drawn())).not.toContain('"engine"')
+  await ui.unmount()
+})

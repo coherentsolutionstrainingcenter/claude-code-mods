@@ -120,9 +120,11 @@ export function register(on) {
     // The held command's card sits above what the hooks beneath drew, so their bands stay.
     const shown = held;
     const rest = await next(e);
+    // Claude Code's own placeholder ({ type: "engine" }) is never nested: the desktop drops a band that nests it.
+    const below = rest && rest.type !== "engine" ? rest : null;
     const t = $.ui.resolve(e);
     const card = draw(t, shown);
-    return rest ? t.Box({ flexDirection: "column", children: [card, rest] }) : card;
+    return below ? t.Box({ flexDirection: "column", children: [card, below] }) : card;
   });
 }
 

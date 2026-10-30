@@ -144,3 +144,29 @@
 ### Checked
 - `claude plugin validate` and `claude plugin test` pass for all six mods. Type checks show no new errors: mod-doctor keeps its 10, session-band its 4, prompt-queue and terminal-pet have none.
 - Not yet seen in a live session.
+
+## 2026-10-30, banner and chat-output list
+
+### Added
+- `docs/BANNER-AND-OUTPUT-MODS.md`: every plugin in this repository that draws the banner above the prompt (18), redraws the chat (5), changes what Claude writes (8) or adds lines to the chat (6). For each: what it shows, when, where it draws, the data it reads, whether it is on now, and its author, licence and upstream. A note covers helper-desk from benai-mods.
+
+### Found
+- secret-box still hides the bands beneath it while its secret box is drawn in the band. Not changed.
+- savvy-progress notes that the desktop drops a band that nests Claude Code's placeholder element. The five band fixes in `12a9397` nest it when nothing sits beneath them, so the banner may vanish on the desktop. Not verified in the app, not changed.
+
+### Not changed
+- No plugin was disabled, changed or built for this list.
+
+## 2026-10-30, band fixes leave out the placeholder
+
+### Fixed
+- The five band fixes from `12a9397` nested Claude Code's own placeholder element (`{ type: 'engine' }`) when no band sat beneath them. savvy-progress notes that the desktop drops a band that nests it, which could hide the whole banner. Each now leaves the placeholder out, as savvy-progress and helper-desk do: replay-theater 0.1.2, session-band 0.2.2, blast-radius 0.1.2, prompt-queue 0.4.6, terminal-pet 0.1.2.
+- A second test in each mod draws the placeholder beneath it and checks that the drawn tree no longer holds it. Each fails on the `12a9397` code and passes now.
+- `docs/BANNER-AND-OUTPUT-MODS.md` updated to match.
+
+### Still open
+- usage-meter, where-am-i, heads-up, mission-control, cache-tax, recording-mode, reflect-mod and next-steps still nest the placeholder. While one of them is the lowest band that draws, the desktop may drop the banner. Not changed.
+
+### Checked
+- `claude plugin test` passes for all five (prompt-queue's old `tests/e2e` file still does not load), `claude plugin validate` passes, and type checks show no new errors.
+- Not yet seen in the desktop app.

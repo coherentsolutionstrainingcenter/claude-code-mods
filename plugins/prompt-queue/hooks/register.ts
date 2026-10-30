@@ -546,7 +546,9 @@ export const register: Register = (on, options) => {
     if (!turnId && inFlight === 0 && !e.props.isWorking && !pending && failures < RETRIES) pending = $.clock.after(0, () => flush($))
     // The bands beneath draw above the queue, so their rows stay.
     const rest = await next(e)
+    // Claude Code's own placeholder ({ type: 'engine' }) is never nested: the desktop drops a band that nests it.
+    const below = rest && rest.type !== 'engine' ? rest : null
     const band = bandOf($, e)
-    return rest ? $.ui.resolve(e).Box({ flexDirection: 'column', children: [rest, band] }) : band
+    return below ? $.ui.resolve(e).Box({ flexDirection: 'column', children: [below, band] }) : band
   })
 }

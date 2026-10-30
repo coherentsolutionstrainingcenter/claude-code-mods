@@ -12,7 +12,7 @@
       "name": "blast-radius",
       "source": "./plugins/blast-radius",
       "description": "Holds risky shell commands (rm -rf, git reset --hard, git clean, force push, migrations) and shows what they would change, with Proceed and Cancel buttons.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Anthropic (Claude Code DevRel)"
       },
@@ -155,7 +155,7 @@
       "name": "replay-theater",
       "source": "./plugins/replay-theater",
       "description": "Replay Theater: step through the file edits Claude made in the last turn, one diff at a time.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Anthropic (Claude Code DevRel)"
       },
@@ -243,7 +243,7 @@
       "name": "prompt-queue",
       "source": "./plugins/prompt-queue",
       "description": "A prompt typed while Claude is working is held in a stack above the prompt instead of landing in the running turn, and sent once the turn ends. Reorder the stack, edit a row in place, send one first, remove one, flush the lot. Needs function hooks (early access) and an interactive terminal.",
-      "version": "0.4.5",
+      "version": "0.4.6",
       "author": {
         "name": "galElmalah"
       },
@@ -452,7 +452,7 @@
       "name": "terminal-pet",
       "source": "./plugins/terminal-pet",
       "description": "A small text pet in the band above the prompt that eats the files Claude reads, with /pet on, /pet off and /pet name",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Igor Waraxe"
       },
@@ -474,7 +474,7 @@
       "name": "session-band",
       "source": "./plugins/session-band",
       "description": "Band above the prompt: turn number, output speed, turn and session cost, prompt cache countdown and context fill; notifies before the cache expires.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "JohnnyVizz"
       },

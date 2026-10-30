@@ -27,3 +27,23 @@ test('the replay hint keeps the bands drawn beneath it', async ($, on) => {
     await ui.unmount()
   }
 })
+
+test('the replay hint leaves out Claude Code’s placeholder when nothing is drawn beneath it', async ($, on) => {
+  on('session.cwd', () => ({ value: '/repo' }) as never)
+  on('tool.call', () => ({ result: {} }) as never)
+  on('turn.start', () => ({ turnId: 't1' }) as never)
+  on('turn.complete', () => ({ text: '' }) as never)
+  // With no band beneath, next(e) answers Claude Code's own drawing of the band.
+  on('ui.render', () => ({ type: 'engine', ref: 0 }) as never)
+
+  await $.turn.start({ turnId: 't1' } as never)
+  await $.tool.call({ tool: 'Edit', file_path: '/repo/a.txt', old_string: 'a', new_string: 'b' } as never)
+  await $.turn.complete({ answer: 'ok', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as never)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'replay-theater', surface, ...BAND })
+    expect(await ui.find({ key: 'open-replay' })).toBeDefined()
+    expect(JSON.stringify(await ui.drawn())).not.toContain('"engine"')
+    await ui.unmount()
+  }
+})

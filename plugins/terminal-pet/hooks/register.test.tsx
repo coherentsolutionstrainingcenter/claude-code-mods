@@ -17,3 +17,16 @@ test('the pet keeps the bands drawn beneath it', async ($, on) => {
     await ui.unmount()
   }
 })
+
+test('the pet leaves out Claude Code’s placeholder when nothing is drawn beneath it', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  // With no band beneath, next(e) answers Claude Code's own drawing of the band.
+  on('ui.render', () => ({ type: 'engine', ref: 0 }) as never)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'terminal-pet', surface, ...BAND })
+    expect(await ui.find({ type: 'Text', text: /Pip/ })).toBeDefined()
+    expect(JSON.stringify(await ui.drawn())).not.toContain('"engine"')
+    await ui.unmount()
+  }
+})

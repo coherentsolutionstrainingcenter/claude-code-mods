@@ -226,6 +226,8 @@ export function register(on, options) {
     if (state.isOpen && state.inBand) return replayView($, e, true);
     if (!state.replay.length || state.isOpen) return next(e);
     const rest = await next(e);
+    // Claude Code's own placeholder ({ type: "engine" }) is never nested: the desktop drops a band that nests it.
+    const below = rest && rest.type !== "engine" ? rest : null;
     const { Box, Text, Button } = $.ui.resolve(e);
     const hint = Box({
       flexDirection: "row", gap: 2, paddingX: 1,
@@ -234,7 +236,7 @@ export function register(on, options) {
         Button({ key: "open-replay", label: "Replay", hotkey: "r", onPress: () => openReplay($) }),
       ],
     });
-    return rest ? Box({ flexDirection: "column", children: [hint, rest] }) : hint;
+    return below ? Box({ flexDirection: "column", children: [hint, below] }) : hint;
   });
 
   // The pane.

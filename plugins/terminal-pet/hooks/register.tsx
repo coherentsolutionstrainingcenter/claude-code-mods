@@ -110,6 +110,8 @@ export const register: Register = on => {
     const mood = moodOf(state, await $.clock.now(), e.props.isWorking)
     // The bands beneath draw above the pet, so their rows stay.
     const rest = await next(e)
+    // Claude Code's own placeholder ({ type: 'engine' }) is never nested: the desktop drops a band that nests it.
+    const below = rest && rest.type !== 'engine' ? rest : null
     const { Box, Text } = $.ui.resolve(e)
 
     const band = (
@@ -121,9 +123,9 @@ export const register: Register = on => {
       </Box>
     )
 
-    return rest ? (
+    return below ? (
       <Box flexDirection="column">
-        {rest}
+        {below}
         {band}
       </Box>
     ) : (

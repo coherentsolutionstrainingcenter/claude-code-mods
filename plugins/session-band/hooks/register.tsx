@@ -299,6 +299,8 @@ export const register: Register = on => {
     if (e.props.hasSurvey || s.turn === 0 || (await read($, isHidden))) return next(e)
     // The bands beneath draw above this row, so the row stays right above the prompt.
     const rest = await next(e)
+    // Claude Code's own placeholder ({ type: 'engine' }) is never nested: the desktop drops a band that nests it.
+    const below = rest && rest.type !== 'engine' ? rest : null
 
     const ui = $.ui.resolve(e)
     const { Box, Button, Text } = ui
@@ -370,9 +372,9 @@ export const register: Register = on => {
       </Box>
     )
 
-    return rest ? (
+    return below ? (
       <Box flexDirection="column">
-        {rest}
+        {below}
         {row}
       </Box>
     ) : (
