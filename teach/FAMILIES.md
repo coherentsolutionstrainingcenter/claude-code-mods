@@ -33,7 +33,6 @@ One lesson per plugin, in tier order. Generated from `docs/plugins.json`; edit t
 | 0027 | [Decision tree](lessons/0027-decision-tree.html) | 4 | `decision-tree` | Ray Amjad | MIT | https://github.com/ray-amjad/claude-code-mods |
 | 0028 | [Plain English](lessons/0028-plain-english.html) | 4 | `plain-english` | Igor Waraxe | MIT | built for this marketplace |
 | 0029 | [Prismantis](lessons/0029-prismantis.html) | 4 | `prismantis` | NahumLitvin | MIT | https://github.com/NahumLitvin/prismantis |
-| 0030 | [Jev skill router](lessons/0030-jev-skill-router.html) | 4 | `jev-skill-suggestion` | Ray Amjad | MIT | https://github.com/ray-amjad/claude-code-mods |
 | 0031 | [Terminal browser](lessons/0031-terminal-browser.html) | 4 | `terminal-browser` | Zenbu Labs | MIT | https://github.com/zenbu-labs/terminal-browser |
 | 0032 | [Today's report](lessons/0032-today-report.html) | 4 | `today-report` | Igor Waraxe | MIT | this marketplace |
 | 0033 | [Claude Skins](lessons/0033-claude-skins.html) | 5 | `skins` | hellosverre | MIT | https://github.com/hellosverre/claude-skins |

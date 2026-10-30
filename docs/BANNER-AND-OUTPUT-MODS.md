@@ -2,7 +2,7 @@
 
 Every plugin in this repository that changes the banner above the prompt or the output in the chat. This is the starting point for one combined banner. Nothing listed here has been disabled or changed for this list.
 
-- **Read on:** 2026-10-30, from each plugin's `claude plugin validate` report and its hook source. All 43 plugins were checked.
+- **Read on:** 2026-10-30, from each plugin's `claude plugin validate` report and its hook source. All 43 plugins were checked. jev-skill-suggestion has since been removed from the repository.
 - **On now:** from `~/.claude/settings.json`. "Not installed" means the plugin has no entry there.
 - **Draws on:** Claude Code raises the banner on the terminal and the desktop app only, not in VS Code or on mobile.
 - **Left out:** side panes (the panels you switch between). They stay as they are.
@@ -23,7 +23,6 @@ Some plugins appear in more than one list.
 | session-band | Turn number, output speed (tok/s), last-turn and session cost, 1-hour prompt cache countdown, context fill. Amber frame 20 min before the cache expires, red at 10. | After the first answer in a chat. `×` or `/session_data` hides it. | terminal, desktop (icons on desktop) | Turn start and end; streamed reply chunks (`turn.step`) for speed; `$.session.usage` for cost; clock for the countdown; session files for context fill | on | JohnnyVizz · MIT · [JohnnyVizz/claude-kit](https://github.com/JohnnyVizz/claude-kit) |
 | usage-meter | 5-hour and 7-day plan usage as small bars, the 5-hour reset time, session cost | Whenever Claude Code has a usage reading | terminal, desktop | `session.measure` (rate limits, cost); `$.session.usage`; clock | on | Hamza Zafar · MIT · [hamzafer/claude-code-mods](https://github.com/hamzafer/claude-code-mods) |
 | where-am-i | Session goal, what Claude is doing now, what comes next, what waits on you | After the first turn, refreshed after each turn | terminal, desktop | Prompts, tool calls, turn start and end, the transcript, one Haiku call per turn | on | Hamza Zafar · MIT · [hamzafer/claude-code-mods](https://github.com/hamzafer/claude-code-mods) |
-| jev-skill-suggestion | Jev's mode with buttons, the top skills with scores and the pick, or a note such as "no API key" | While a draft is scored, or while it has a note | terminal, desktop | The draft as you type (`prompt.edit`), Claude's skill listing, skill files, TypeSafe's API over HTTP | on | Ray Amjad · MIT · [ray-amjad/claude-code-mods](https://github.com/ray-amjad/claude-code-mods) |
 | mission-control | One summary line of the turn's tool calls, agents and files | While Claude works, and 30 s after a turn | terminal, desktop | Tool calls, agent spawns, turn start and end, clock | on | Hamza Zafar · MIT · [hamzafer/claude-code-mods](https://github.com/hamzafer/claude-code-mods) |
 | heads-up | Up to two things you might miss after a long turn (a failed tool call, extra files changed, no test run, a risky step), with Dismiss | After a long turn, only when it finds something | terminal, desktop | Tool calls and results, turn start and end, one model call | on | Igor Waraxe · MIT · built here |
 | replay-theater | "Replay: N edits" with a Replay button; the replay view itself when no pane fits | After a turn that edited files | terminal, desktop | Edit, Write and MultiEdit calls, turn start and end, file reads | on | Anthropic (Claude Code DevRel) · Apache-2.0 · [claude-code-playground](https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods) |
@@ -65,7 +64,6 @@ These add to or change Claude's instructions, so they change the replies themsel
 | human-in-the-loop | Adds a system-prompt section on handing tasks to you, and a digest of your answers to the next prompt | Always; the digest after you answer | on | tzafrir · MIT |
 | reflect-mod | Adds "rules the user saved this session" to the system prompt | After you save a rule | on | Bayram Annakov · MIT |
 | ctx-handoff | Adds this workspace's notes and last progress at the start of each chat | Each new chat | on | cablate · MIT |
-| jev-skill-suggestion | Observe mode removes skills you unticked from Claude's skill list; block mode hides the list; steer mode hides it and names Jev's pick | Each prompt (now in observe mode, with no key) | on | Ray Amjad · MIT |
 | recording-mode | Adds a note telling Claude to leave out names, amounts and other private data | While `/rec` is on | on | Nate Herk · MIT |
 | secret-box | Replaces secrets with placeholders in what Claude reads: context, attachments and tool output | Always | on | Ray Amjad · MIT |
 | skins | Adds chart and diagram hints to the system prompt | While its charts and hints are on | not installed | hellosverre · MIT |
@@ -118,7 +116,7 @@ Enabled now and outside this repository, one more plugin touches the banner:
 - JohnnyVizz/claude-kit (session-band, savvy-progress)
 - hamzafer/claude-code-mods (usage-meter, where-am-i, mission-control, next-steps)
 - karanb192/cache-tax
-- ray-amjad/claude-code-mods (jev-skill-suggestion, secret-box)
+- ray-amjad/claude-code-mods (secret-box)
 - anthropics/claude-code-playground (replay-theater, blast-radius)
 - cablate/ctx-handoff-mod
 - BayramAnnakov/claude-reflect

@@ -4,7 +4,7 @@
     "name": "Igor Waraxe"
   },
   "metadata": {
-    "description": "43 Claude Code mods, one per lesson, ordered by how useful they are, with a course that explains how each one is built.",
+    "description": "42 Claude Code mods, one per lesson, ordered by how useful they are, with a course that explains how each one is built.",
     "version": "1.0.0"
   },
   "plugins": [
@@ -323,17 +323,6 @@
       "version": "0.37.1",
       "author": {
         "name": "NahumLitvin"
-      },
-      "license": "MIT",
-      "category": "tier-4"
-    },
-    {
-      "name": "jev-skill-suggestion",
-      "source": "./plugins/jev-skill-suggestion",
-      "description": "Scores every skill against your prompt with TypeSafe Jev as you type; observe, block or steer skill loading",
-      "version": "0.2.1",
-      "author": {
-        "name": "Ray Amjad"
       },
       "license": "MIT",
       "category": "tier-4"

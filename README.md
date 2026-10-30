@@ -1,11 +1,11 @@
 # waraxe-claude-mods
 
-Our internal Claude Code marketplace: 43 mods you can install, and a course that explains how each one is built. Shared inside our GitHub organization only.
+Our internal Claude Code marketplace: 42 mods you can install, and a course that explains how each one is built. Shared inside our GitHub organization only.
 
 The repository is [coherentsolutionstrainingcenter/claude-code-mods](https://github.com/coherentsolutionstrainingcenter/claude-code-mods). The marketplace inside it is named `waraxe-claude-mods`, so you add the repository once and then install each mod as `<plugin>@waraxe-claude-mods`.
 
 - **Mods:** `plugins/`, one folder per mod. Each holds a README, a LICENSE, `INSTRUCTIONS.md` (install and use) and `EXPLANATION.md` (how it works, with a link to its lesson).
-- **Course:** open `teach/index.html`. There are 43 lessons, one per mod, ordered by tier so the most useful mods come first.
+- **Course:** open `teach/index.html`. There are 42 lessons, one per mod, ordered by tier so the most useful mods come first.
 - **Review:** `docs/MODS-FINAL-SYNTHESIS.md` ranks the 109 mods found in the videos and guides. `docs/plugins.json` maps every lesson to its plugin and source.
 
 ## Install
@@ -21,7 +21,7 @@ Then open a new chat. Mods need Claude Code 2.1.287 or later, with mods turned o
 
 **"Repository not found"?** Git is using a GitHub account outside the organization. GitHub answers "not found" for a private repository you can't see. Run `gh auth status` to see your accounts, then `gh auth switch --user <your organization account>` and add the marketplace again.
 
-## The 43 mods, in tier order
+## The 42 mods, in tier order
 
 | No. | Plugin | What it does | Tier | Author | Licence | Lesson |
 |---|---|---|---|---|---|---|
@@ -54,7 +54,6 @@ Then open a new chat. Mods need Claude Code 2.1.287 or later, with mods turned o
 | 0027 | `decision-tree` | When Claude ends a reply with a question, explains the choice in a side pane and lets you explore any option, or your own, in a real forked session | 4 | Ray Amjad | MIT | [Decision tree](teach/lessons/0027-decision-tree.html) |
 | 0028 | `plain-english` | While on, rewrites each long reply in plain language with a short Next steps list, in a side pane, and leaves Claude's reply unchanged | 4 | Igor Waraxe | MIT | [Plain English](teach/lessons/0028-plain-english.html) |
 | 0029 | `prismantis` | Colorful, themeable rendering for Claude Code replies: tables, headings, code, numbers, paths and links. | 4 | NahumLitvin | MIT | [Prismantis](teach/lessons/0029-prismantis.html) |
-| 0030 | `jev-skill-suggestion` | Scores every skill against your prompt with TypeSafe Jev as you type; observe, block or steer skill loading | 4 | Ray Amjad | MIT | [Jev skill router](teach/lessons/0030-jev-skill-router.html) |
 | 0031 | `terminal-browser` | A browser running directly inside claude code. Preview websites, view HTML documents, and let your agent control the built in browser. | 4 | Zenbu Labs | MIT | [Terminal browser](teach/lessons/0031-terminal-browser.html) |
 | 0032 | `today-report` | Today's Report: totals your Claude Code tasks, the time they would have taken you, and tokens by day, week, month and year, from your session logs | 4 | Igor Waraxe | MIT | [Today's report](teach/lessons/0032-today-report.html) |
 | 0033 | `skins` | Skins for Claude Code: tool rows that open onto their input and answer, highlighted code, diff, table, math, Mermaid and shell cards, links, folding, a usage band, a calm mode and fifteen themes. /skin swaps them live. | 5 | hellosverre | MIT | [Claude Skins](teach/lessons/0033-claude-skins.html) |
@@ -72,7 +71,6 @@ Then open a new chat. Mods need Claude Code 2.1.287 or later, with mods turned o
 ## Needs beyond Claude Code
 
 - `mod-doctor` needs the claude command on the PATH.
-- `jev-skill-suggestion` needs a TypeSafe Jev API key.
 - `terminal-browser` needs the terminal-browser app from Zenbu Labs.
 - `today-report` needs python3.
 - `repo-heatmap` needs git.

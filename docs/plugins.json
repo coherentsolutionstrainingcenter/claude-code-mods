@@ -464,22 +464,6 @@
   "needs": ""
  },
  {
-  "n": 30,
-  "tier": 4,
-  "lesson": "0030-jev-skill-router.html",
-  "old_lesson": "0032-jev-skill-router.html",
-  "title": "Jev skill router",
-  "plugin": "jev-skill-suggestion",
-  "kind": "vendored",
-  "src": "/private/tmp/claude-502/-Users-igorwaraxe--claude-spares-spare-elAsgJ/2694032d-f9db-4e78-a1e7-ec645d762a8a/scratchpad/src/secret-box/repo/plugins/jev-skill-suggestion",
-  "author": "Ray Amjad",
-  "upstream": "https://github.com/ray-amjad/claude-code-mods",
-  "license_file": "/private/tmp/claude-502/-Users-igorwaraxe--claude-spares-spare-elAsgJ/2694032d-f9db-4e78-a1e7-ec645d762a8a/scratchpad/src/secret-box/repo/LICENSE",
-  "license": "MIT",
-  "rewrite_lesson": false,
-  "needs": "a TypeSafe Jev API key"
- },
- {
   "n": 31,
   "tier": 4,
   "lesson": "0031-terminal-browser.html",

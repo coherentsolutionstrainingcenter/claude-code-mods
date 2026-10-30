@@ -170,3 +170,30 @@
 ### Checked
 - `claude plugin test` passes for all five (prompt-queue's old `tests/e2e` file still does not load), `claude plugin validate` passes, and type checks show no new errors.
 - Not yet seen in the desktop app.
+
+## 2026-10-30, Prismantis removed
+
+### Removed
+- Disabled and uninstalled `prismantis@waraxe-claude-mods` 0.37.1 at user scope, at the user's request. The uninstall also dropped its `enabledPlugins` entry and its `theme: github-light` option from `~/.claude/settings.json`, and its entry from `installed_plugins.json`.
+
+### Notes
+- `plugins/prismantis` stays in the repo and in `.claude-plugin/marketplace.json`, so it can be installed again.
+- The cached copy in `~/.claude/plugins/cache/waraxe-claude-mods/prismantis/0.37.1` is marked orphaned, and Claude Code removes it later.
+- Backups from before the change are in the session scratchpad.
+
+## 2026-10-30, jev-skill-suggestion removed
+
+### Removed
+- Disabled and uninstalled `jev-skill-suggestion@waraxe-claude-mods` 0.2.1 at user scope, at the user's request. Its `enabledPlugins` entry and its `installed_plugins.json` entry are gone.
+- Deleted `plugins/jev-skill-suggestion` and lesson `teach/lessons/0030-jev-skill-router.html`.
+- Removed its entries from `.claude-plugin/marketplace.json`, `docs/plugins.json`, `README.md` (the mods table and the Needs list), `teach/index.html` and `teach/FAMILIES.md`, and its rows from `docs/BANNER-AND-OUTPUT-MODS.md`.
+- The marketplace, README and course index now count 42 mods and 42 lessons.
+
+### Changed
+- Lesson 0029 now links forward to 0031, and 0031 links back to 0029.
+
+### Notes
+- Lesson numbers now skip 0030. The other lessons keep their numbers.
+- `docs/MODS-FINAL-SYNTHESIS.md` and `teach/reference/mod-catalogue.html` still name Jev, because they review mods in general, not this marketplace.
+- `claude plugin validate .` passes.
+- Backups from before the change are in the session scratchpad.
