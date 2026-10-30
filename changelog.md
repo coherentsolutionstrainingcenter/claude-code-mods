@@ -209,3 +209,12 @@
 - `docs/MODS-FINAL-SYNTHESIS.md` and `teach/reference/mod-catalogue.html` still name Jev, because they review mods in general, not this marketplace.
 - `claude plugin validate .` passes.
 - Backups from before the change are in the session scratchpad.
+
+## 2026-10-30, combined banner field list
+
+### Added
+- `docs/COMBINED-BANNER-FIELDS.md`: the fields one combined banner will show, status rows only: a session row, a plan row, a summary row and a heads-up line, each field with what it shows, the Claude Code data behind it, when it appears and its priority in a narrow window. It also covers the keep-warm button, the rules the banner follows, and what it leaves out and why.
+- Decisions recorded in it: the summary row and heads-up are on; keep-warm is built in, with cache-tax's MIT code as a reference, and cache-tax stays enabled only for its cold-send guard; one press keeps the cache warm for 2 hours; Jev and the REC badge stay in their own mods; the activity row is dropped because mission-control's own row covers it.
+
+### Not changed
+- No code written, and no plugin disabled or changed.
