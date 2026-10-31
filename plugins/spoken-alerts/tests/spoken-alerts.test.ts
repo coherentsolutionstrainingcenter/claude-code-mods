@@ -276,13 +276,48 @@ describe('cloud voices', () => {
     expect(w.toasts).toEqual([])
   })
 
-  test('the voice settings replace the defaults', { options: { ...OPENAI, doneVoice: 'onyx', questionVoice: 'shimmer' } }, async ($, on) => {
-    const clock = mock.clock(on, { now: START })
-    const w = world(on, { api: { status: 200, text: SSE } })
+  // Every provider's pair set at once: only the chosen provider's is used.
+  const ALL_VOICES = {
+    macDoneVoice: 'Fred',
+    macQuestionVoice: 'Kathy',
+    openaiDoneVoice: 'ash',
+    openaiQuestionVoice: 'shimmer',
+    elevenlabsDoneVoice: 'el-done',
+    elevenlabsQuestionVoice: 'el-question',
+  }
+  const both = async ($: Engine, clock: MockClock) => {
     await turn($, 't1')
     await $.tool.call(dialog([{ label: 'Yes (Recommended)', description: '' }, { label: 'No', description: '' }]))
     await settled(clock)
-    expect(w.fetched.map(f => f.body.voice)).toEqual(['onyx', 'shimmer'])
+  }
+
+  test('the OpenAI voice settings replace the defaults', { options: { ...OPENAI, ...ALL_VOICES } }, async ($, on) => {
+    const clock = mock.clock(on, { now: START })
+    const w = world(on, { api: { status: 200, text: SSE } })
+    await both($, clock)
+    expect(w.fetched.map(f => f.body.voice)).toEqual(['ash', 'shimmer'])
+  })
+
+  test('switched to ElevenLabs, its own voice settings are used, not OpenAI’s', { options: { ...ELEVENLABS, ...ALL_VOICES } }, async ($, on) => {
+    const clock = mock.clock(on, { now: START })
+    const w = world(on, { api: { status: 200, text: JSON.stringify({ audio_base64: WHOLE }) } })
+    await both($, clock)
+    expect(w.fetched.map(f => f.url.split('/')[5])).toEqual(['el-done', 'el-question'])
+  })
+
+  test('the Mac voice settings speak when a cloud voice fails', { options: { ...OPENAI, ...ALL_VOICES } }, async ($, on) => {
+    const clock = mock.clock(on, { now: START })
+    const w = world(on, { api: { status: 401, text: '' } })
+    await both($, clock)
+    expect(w.heard.filter(h => !h.startsWith('play ')).map(h => h.split(':')[0])).toEqual(['Fred', 'Kathy', 'Kathy'])
+  })
+
+  test('the Mac voice settings replace Samantha and Daniel', { options: ALL_VOICES }, async ($, on) => {
+    const clock = mock.clock(on, { now: START })
+    const w = world(on)
+    await both($, clock)
+    expect(w.fetched).toEqual([])
+    expect(w.heard.filter(h => !h.startsWith('play ')).map(h => h.split(':')[0])).toEqual(['Fred', 'Kathy', 'Kathy'])
   })
 
   test('ElevenLabs: the voice ID in the address, the key in its header, the base64 audio played', { options: ELEVENLABS }, async ($, on) => {

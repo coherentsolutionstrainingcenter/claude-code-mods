@@ -309,7 +309,7 @@
       "name": "spoken-alerts",
       "source": "./plugins/spoken-alerts",
       "description": "Speaks two alerts with Mac, OpenAI or ElevenLabs voices: when work ends, the project, the thread and what was done; when Claude asks you something, a chime, the question and the recommended option.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "author": {
         "name": "Igor Waraxe"
       },

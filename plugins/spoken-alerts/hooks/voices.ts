@@ -7,7 +7,8 @@ export type Alert = 'done' | 'question'
 
 export const PROVIDER_NAMES: Record<Provider, string> = { mac: 'Mac', openai: 'OpenAI', elevenlabs: 'ElevenLabs' }
 
-// Used when a voice setting is left empty.
+// The voice settings' defaults, as plugin.json has them, for a setting someone emptied.
+// Change the voices in the settings (/config), not here.
 export const DEFAULT_VOICES: Record<Provider, Record<Alert, string>> = {
   mac: { done: 'Samantha', question: 'Daniel' },
   openai: { done: 'onyx', question: 'nova' },

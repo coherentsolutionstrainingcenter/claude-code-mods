@@ -393,3 +393,17 @@
 
 ### Checked
 - `claude plugin test plugins/spoken-alerts`: 26 tests pass. `claude plugin validate` passes. Not yet heard in the app.
+
+## 2026-10-31, spoken-alerts voices as settings per provider
+
+### Changed
+- `plugins/spoken-alerts` 0.3.0: the voices live in the settings, one pair per provider: `macDoneVoice` and `macQuestionVoice` (Samantha, Daniel), `openaiDoneVoice` and `openaiQuestionVoice` (onyx, nova), `elevenlabsDoneVoice` and `elevenlabsQuestionVoice` (Sarah, George). They replace `doneVoice` and `questionVoice`, which every provider shared: an OpenAI voice name set there would have gone to ElevenLabs as a voice ID after a switch. The user had been changing voices in `hooks/voices.ts`; the settings' defaults now show in `/config`, so no code edit is needed.
+  - Switching `provider` keeps every pair.
+  - The Mac pair also speaks when a cloud voice fails, in place of a fixed Samantha and Daniel.
+  - `DEFAULT_VOICES` in `hooks/voices.ts` stays only for a setting someone empties, and says to change voices in the settings.
+- README: the Voices table names each setting with its default.
+
+### Checked
+- `claude plugin test plugins/spoken-alerts`: 29 tests pass, 4 of them new: the OpenAI pair, ElevenLabs' own pair after a switch, the Mac pair on a failure and on its own. `claude plugin validate` passes, and the type check shows no errors.
+- `doneVoice` and `questionVoice` were never saved in `~/.claude/settings.json`, so no stored value is lost.
+- Seen in the desktop app: after `/reload-plugins`, the user confirmed the six voice rows show in `/config`.

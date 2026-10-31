@@ -13,13 +13,13 @@ By default it speaks through the Mac's own voices (`$.audio.speak`, which is `sa
 
 ## Voices
 
-| `provider` | Work-done voice | Question voice | Needs |
+| `provider` | Work-done voice setting (default) | Question voice setting (default) | Needs |
 |---|---|---|---|
-| `mac` (default) | Samantha | Daniel | nothing: free and offline |
-| `openai` | onyx | nova | an OpenAI API key; model `gpt-4o-mini-tts`, which speaks the question alert in a more urgent style |
-| `elevenlabs` | Sarah (`EXAVITQu4vr4xnSDxMaL`) | George (`JBFqnCBsd6RMkjVDRZzb`) | an ElevenLabs API key; model `eleven_flash_v2_5` |
+| `mac` (default) | `macDoneVoice` (Samantha) | `macQuestionVoice` (Daniel) | nothing: free and offline |
+| `openai` | `openaiDoneVoice` (onyx) | `openaiQuestionVoice` (nova) | an OpenAI API key; model `gpt-4o-mini-tts`, which speaks the question alert in a more urgent style |
+| `elevenlabs` | `elevenlabsDoneVoice` (Sarah, `EXAVITQu4vr4xnSDxMaL`) | `elevenlabsQuestionVoice` (George, `JBFqnCBsd6RMkjVDRZzb`) | an ElevenLabs API key; model `eleven_flash_v2_5` |
 
-`doneVoice` and `questionVoice` replace those defaults. Use a name from `say -v '?'` for `mac`, a voice name for `openai` (alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer, verse), and a voice ID from your ElevenLabs voice library for `elevenlabs`. Leave a field empty for the default.
+The voices are settings, not code: change them in the desktop app's `/config`, where each one is a row showing its value, or with `claude plugin configure` (below). Each provider keeps its own pair, so switching `provider` never changes a voice. Use a name from `say -v '?'` for the Mac, a voice name for OpenAI (alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer, verse), and a voice ID from your ElevenLabs voice library. The Mac pair also speaks when a cloud voice fails. A setting you empty goes back to its default.
 
 With a cloud provider the chime plays at once while the audio downloads, so the voice starts a second or two later than a Mac voice would. If the cloud voice fails (no key, a refused key, no credits, no network, 20 seconds without an answer), the Mac voice speaks that alert instead. A toast says why, once per reason in each session.
 
@@ -37,7 +37,7 @@ The file is read again at each alert, so a key you change there needs no reload.
 echo '{"provider":"openai"}' | claude plugin configure spoken-alerts@waraxe-claude-mods --values-stdin
 ```
 
-To keep a key in the keychain instead, add it to the same JSON (`"openaiApiKey":"..."` or `"elevenlabsApiKey":"..."`). Options you leave out keep their values, so `{"provider":"mac"}` switches back without losing a key. The keys are not rows in `/config`, since they are secret.
+To keep a key in the keychain instead, add it to the same JSON (`"openaiApiKey":"..."` or `"elevenlabsApiKey":"..."`). Options you leave out keep their values, so `{"provider":"mac"}` switches back without losing a key or a voice. A voice is set the same way, for example `{"openaiQuestionVoice":"shimmer"}`. The keys are not rows in `/config`, since they are secret.
 
 Then, in the session, run `/reload-plugins` and `/spoken-alerts-test`. It answers at once and plays both alerts; with a cloud voice, a toast then says they played, or why the Mac voices spoke instead.
 

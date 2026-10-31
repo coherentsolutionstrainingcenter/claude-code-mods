@@ -12,7 +12,8 @@ const SOUNDS: Record<Alert, string> = { done: 'sounds/done.wav', question: 'soun
 const cfg = {
   provider: 'mac' as Provider,
   keys: { openai: '', elevenlabs: '' },
-  voices: DEFAULT_VOICES.mac,
+  voices: DEFAULT_VOICES.mac, // the chosen provider's
+  macVoices: DEFAULT_VOICES.mac, // also for a cloud voice that fails
 }
 
 // A permission prompt or a dialog may also raise a notification: one heard this soon after a
@@ -58,8 +59,7 @@ function enqueue($: EngineInterface, alert: Alert, lines: readonly string[]) {
           return
         }
       } else if (clip) warn($, provider, clip)
-      const voice = provider === 'mac' ? cfg.voices[alert] : DEFAULT_VOICES.mac[alert]
-      for (const line of spoken) await say($, line, voice)
+      for (const line of spoken) await say($, line, cfg.macVoices[alert])
     })
     .catch(() => {})
 }
@@ -119,8 +119,13 @@ export const register: Register = (on, options) => {
   cfg.provider = options.provider === 'openai' || options.provider === 'elevenlabs' ? options.provider : 'mac'
   const text = (name: string) => (typeof options[name] === 'string' ? (options[name] as string).trim() : '')
   cfg.keys = { openai: text('openaiApiKey'), elevenlabs: text('elevenlabsApiKey') }
-  const defaults = DEFAULT_VOICES[cfg.provider]
-  cfg.voices = { done: text('doneVoice') || defaults.done, question: text('questionVoice') || defaults.question }
+  // Each provider keeps its own pair, so switching providers changes no voice.
+  const voicesOf = (p: Provider) => ({
+    done: text(`${p}DoneVoice`) || DEFAULT_VOICES[p].done,
+    question: text(`${p}QuestionVoice`) || DEFAULT_VOICES[p].question,
+  })
+  cfg.voices = voicesOf(cfg.provider)
+  cfg.macVoices = voicesOf('mac')
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'spoken-alerts-test', description: 'Play both alerts with the voices you set' })
