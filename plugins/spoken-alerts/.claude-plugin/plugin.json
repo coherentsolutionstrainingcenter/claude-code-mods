@@ -21,13 +21,13 @@
     "doneVoice": {
       "type": "string",
       "title": "Work-done voice",
-      "description": "Empty: Samantha (Mac), alloy (OpenAI), Sarah (ElevenLabs). Otherwise a Mac voice name, an OpenAI voice name or an ElevenLabs voice ID, for the provider you chose.",
+      "description": "Empty: Samantha (Mac), cedar (OpenAI), Sarah (ElevenLabs). Otherwise a Mac voice name, an OpenAI voice name or an ElevenLabs voice ID, for the provider you chose.",
       "default": ""
     },
     "questionVoice": {
       "type": "string",
       "title": "Question voice",
-      "description": "Empty: Daniel (Mac), nova (OpenAI), George (ElevenLabs). Otherwise a voice for the provider you chose.",
+      "description": "Empty: Daniel (Mac), marin (OpenAI), George (ElevenLabs). Otherwise a voice for the provider you chose.",
       "default": ""
     },
     "openaiApiKey": {

@@ -10,8 +10,7 @@ export const PROVIDER_NAMES: Record<Provider, string> = { mac: 'Mac', openai: 'O
 // Used when a voice setting is left empty.
 export const DEFAULT_VOICES: Record<Provider, Record<Alert, string>> = {
   mac: { done: 'Samantha', question: 'Daniel' },
-  // The pair the claude-cs hooks speak with.
-  openai: { done: 'alloy', question: 'nova' },
+  openai: { done: 'cedar', question: 'marin' },
   // ElevenLabs' stock voices Sarah and George.
   elevenlabs: { done: 'EXAVITQu4vr4xnSDxMaL', question: 'JBFqnCBsd6RMkjVDRZzb' },
 }

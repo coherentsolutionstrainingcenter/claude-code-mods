@@ -16,10 +16,10 @@ By default it speaks through the Mac's own voices (`$.audio.speak`, which is `sa
 | `provider` | Work-done voice | Question voice | Needs |
 |---|---|---|---|
 | `mac` (default) | Samantha | Daniel | nothing: free and offline |
-| `openai` | alloy | nova | an OpenAI API key; model `gpt-4o-mini-tts`, which speaks the question alert in a more urgent style |
+| `openai` | cedar | marin | an OpenAI API key; model `gpt-4o-mini-tts`, which speaks the question alert in a more urgent style |
 | `elevenlabs` | Sarah (`EXAVITQu4vr4xnSDxMaL`) | George (`JBFqnCBsd6RMkjVDRZzb`) | an ElevenLabs API key; model `eleven_flash_v2_5` |
 
-`doneVoice` and `questionVoice` replace those defaults. Use a name from `say -v '?'` for `mac`, a voice name for `openai` (alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, verse), and a voice ID from your ElevenLabs voice library for `elevenlabs`. Leave a field empty for the default.
+`doneVoice` and `questionVoice` replace those defaults. Use a name from `say -v '?'` for `mac`, a voice name for `openai` (alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer, verse), and a voice ID from your ElevenLabs voice library for `elevenlabs`. Leave a field empty for the default.
 
 With a cloud provider the chime plays at once while the audio downloads, so the voice starts a second or two later than a Mac voice would. If the cloud voice fails (no key, a refused key, no credits, no network, 20 seconds without an answer), the Mac voice speaks that alert instead. A toast says why, once per reason in each session.
 

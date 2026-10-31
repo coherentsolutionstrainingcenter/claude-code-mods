@@ -370,3 +370,12 @@
 
 ### Notes
 - Claude did not read either `.env` file or copy a key: the claude-cs `pre_tool_use` hook blocks `.env` reads. The mod reads `~/.claude/.env` itself when an alert plays, so no key passes through a chat.
+
+## 2026-10-31, spoken-alerts OpenAI voices cedar and marin
+
+### Changed
+- `plugins/spoken-alerts`: OpenAI's default voices are now cedar for the work-done alert and marin for the question alert, in place of alloy and nova, as the user set them. `plugin.json`'s voice descriptions and the README's voices table and list say so. The version is unchanged.
+
+### Checked
+- In the desktop app, after `/reload-plugins`, `/spoken-alerts-test` printed "Playing both alerts with the OpenAI voices cedar and marin".
+- `claude plugin test plugins/spoken-alerts`: 26 tests pass after the two that expected alloy and nova were updated. `claude plugin validate` passes, and the type check shows no errors.
