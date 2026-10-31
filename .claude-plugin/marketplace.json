@@ -306,6 +306,17 @@
       "category": "tier-3"
     },
     {
+      "name": "spoken-alerts",
+      "source": "./plugins/spoken-alerts",
+      "description": "Speaks two alerts with the Mac's voices: when work ends, the project, the thread and what was done; when Claude asks you something, a chime, the question and the recommended option.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Igor Waraxe"
+      },
+      "license": "MIT",
+      "category": "tier-3"
+    },
+    {
       "name": "decision-tree",
       "source": "./plugins/decision-tree",
       "description": "When Claude ends a reply with a question, explains the choice in a side pane and lets you explore any option, or your own, in a real forked session",

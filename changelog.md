@@ -332,3 +332,20 @@
 
 ### Changed
 - `plugins/today-report`: the `hourlyRate` option now defaults to $32 an hour instead of $50, as the user set it. The version is unchanged. It changes the value estimate for anyone who has not set the option.
+
+## 2026-10-31, spoken-alerts
+
+### Added
+- `plugins/spoken-alerts` 0.1.0: one mod that speaks two alerts with the Mac's own voices, as a desktop-app substitute for the `Stop` and `Notification` hooks in `~/.claude-cs/hooks`. The desktop app reads `~/.claude/settings.json`, which has no hooks, so those scripts never ran there.
+  - Work done: a soft falling chime, then Samantha says the project, the thread and one sentence of what was done, from one Haiku call after each main-thread turn.
+  - Question: a bright rising chime played twice, then Daniel says the question and the recommended option. It covers question dialogs, permission prompts, the desktop's next-step box (after the work-done alert) and tasks assigned through human-in-the-loop.
+  - `sounds/done.wav` and `sounds/question.wav` are generated sine chimes, made for this mod.
+- Registered in `.claude-plugin/marketplace.json` after status-banner.
+
+### Checked
+- `claude plugin test plugins/spoken-alerts`: 15 tests pass. `claude plugin validate` passes, and the type check shows no errors.
+- Installed at user scope (`~/.claude`; a backup from before is in `~/.claude/backups/before-spoken-alerts-install-*`). After `/reload-plugins`, the user heard all three in the desktop app: a question dialog's alert with the right project and thread, then at the turn's end the work-done alert followed by the next-step box's question.
+- Not yet seen: whether status-banner's keep-warm pings raise a turn end that would speak.
+
+### Not changed
+- `~/.claude-cs/settings.json` and its hooks: the `claude-cs` terminal setup keeps speaking with OpenAI voices. status-banner is unchanged.
