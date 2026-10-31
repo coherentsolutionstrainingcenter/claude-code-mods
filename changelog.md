@@ -379,3 +379,17 @@
 ### Checked
 - In the desktop app, after `/reload-plugins`, `/spoken-alerts-test` printed "Playing both alerts with the OpenAI voices cedar and marin".
 - `claude plugin test plugins/spoken-alerts`: 26 tests pass after the two that expected alloy and nova were updated. `claude plugin validate` passes, and the type check shows no errors.
+
+## 2026-10-31, spoken-alerts heard with ElevenLabs
+
+### Checked
+- `provider` set to `elevenlabs` in `~/.claude/settings.json` at the user's request. After `/reload-plugins`, the user heard `/spoken-alerts-test` speak with ElevenLabs' Sarah and George, with the key from `~/.claude/.env`. Both cloud providers now work in the desktop app; the 0.2.0 entry's "not yet heard with a real key" no longer holds.
+- `provider` set back to `openai` afterwards, at the user's request.
+
+## 2026-10-31, spoken-alerts OpenAI voices onyx and nova
+
+### Changed
+- `plugins/spoken-alerts`: OpenAI's default voices are now onyx for the work-done alert and nova for the question alert, in place of cedar and marin, as the user set them in `hooks/voices.ts`. `plugin.json`'s voice descriptions, the README's voices table and the two tests that name the pair say so. The version is unchanged.
+
+### Checked
+- `claude plugin test plugins/spoken-alerts`: 26 tests pass. `claude plugin validate` passes. Not yet heard in the app.

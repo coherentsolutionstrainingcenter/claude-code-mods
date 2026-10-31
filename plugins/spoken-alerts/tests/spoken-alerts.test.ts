@@ -269,7 +269,7 @@ describe('cloud voices', () => {
     expect(w.heard).toEqual(['play sounds/done.wav', `play audio/mpeg ${WHOLE}`, 'play sounds/question.wav', `play audio/mpeg ${WHOLE}`])
     expect(w.fetched.map(f => f.url)).toEqual(['https://api.openai.com/v1/audio/speech', 'https://api.openai.com/v1/audio/speech'])
     expect(w.fetched[0]!.headers.authorization).toBe('Bearer test-key')
-    expect(w.fetched.map(f => f.body.voice)).toEqual(['cedar', 'marin'])
+    expect(w.fetched.map(f => f.body.voice)).toEqual(['onyx', 'nova'])
     expect(w.fetched[0]!.body.input).toBe('Done in waraxe claude mods, thread Spoken alerts mod. Built the spoken alerts mod and its tests.')
     expect(w.fetched[1]!.body.input).toBe('Question from waraxe claude mods, thread Spoken alerts mod. Which voices should the alerts use? Recommended: Yes.')
     expect(w.fetched[0]!.body.instructions).not.toBe(w.fetched[1]!.body.instructions)
@@ -370,10 +370,10 @@ describe('/spoken-alerts-test', () => {
     const w = world(on, { api: { status: 200, text: SSE } })
     await $.session.start({ surface: 'desktop', isInteractive: true, cwd: '/Users/me/waraxe-claude-mods' })
     const r = await $.command.run({ command: 'spoken-alerts-test', args: '' } as never)
-    expect(r.text).toBe('Playing both alerts with the OpenAI voices cedar and marin. A toast says when they have played, or why the Mac voices spoke instead.')
+    expect(r.text).toBe('Playing both alerts with the OpenAI voices onyx and nova. A toast says when they have played, or why the Mac voices spoke instead.')
     await settled(clock)
     expect(w.heard).toEqual(['play sounds/done.wav', `play audio/mpeg ${WHOLE}`, 'play sounds/question.wav', `play audio/mpeg ${WHOLE}`])
-    expect(w.toasts).toEqual(['spoken-alerts: both alerts played with the OpenAI voices cedar and marin.'])
+    expect(w.toasts).toEqual(['spoken-alerts: both alerts played with the OpenAI voices onyx and nova.'])
   })
 
   test('a toast says why the cloud voice failed, even when an alert already said so', { options: OPENAI }, async ($, on) => {
