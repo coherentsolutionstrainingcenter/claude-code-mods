@@ -1,6 +1,6 @@
 # spoken-alerts: instructions
 
-Speaks two alerts with the Mac's voices: when work ends, the project, the thread and what was done; when Claude asks you something, a chime, the question and the recommended option.
+Speaks two alerts with Mac, OpenAI or ElevenLabs voices: when work ends, the project, the thread and what was done; when Claude asks you something, a chime, the question and the recommended option.
 
 ## Install
 

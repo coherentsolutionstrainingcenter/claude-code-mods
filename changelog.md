@@ -349,3 +349,24 @@
 
 ### Not changed
 - `~/.claude-cs/settings.json` and its hooks: the `claude-cs` terminal setup keeps speaking with OpenAI voices. status-banner is unchanged.
+
+## 2026-10-31, spoken-alerts voice providers
+
+### Changed
+- `plugins/spoken-alerts` 0.2.0: a `provider` setting picks the voices: `mac` (the default and the old behaviour), `openai` or `elevenlabs`. The whole mod stays one mod: only the step that turns an alert's words into sound changes, so two providers can never both speak an alert.
+  - OpenAI: `gpt-4o-mini-tts`, voices alloy and nova by default (the pair the claude-cs hooks use), with a calmer style for work done and a more urgent one for questions. A mod's web request returns text only, so the audio is asked for as `stream_format: "sse"` and its base64 pieces are joined.
+  - ElevenLabs: `eleven_flash_v2_5` through the `with-timestamps` endpoint, which returns the audio as base64 JSON. Stock voices Sarah and George by default.
+  - `doneVoice` and `questionVoice` replace the defaults; empty keeps them.
+  - The key comes from the `openaiApiKey` or `elevenlabsApiKey` secret setting (Claude Code's secure storage), else from `OPENAI_API_KEY` or `ELEVENLABS_API_KEY` in the environment, else from that variable in `~/.claude/.env`, read at each alert. The user chose the file, where the keys already are, after the first one-liner that copied them into the settings did not run.
+  - A cloud voice that fails, or gives no answer in 20 seconds, falls back to the Mac voice for that alert, with one toast per reason saying why. The toast never repeats the provider's reply, which can echo part of the key.
+  - The chime plays while the audio downloads.
+  - `/spoken-alerts-test` plays both alerts. It answers at once and a toast reports the outcome afterwards: in the app it printed that no hook had answered, most likely because waiting for both OpenAI clips took longer than a command may take.
+- README: a Voices section with the defaults, the setup command, the cost and what is sent to the provider.
+
+### Checked
+- `claude plugin test plugins/spoken-alerts`: 26 tests pass, 11 of them new. They cover both providers' requests, the voice settings, the joined OpenAI audio, a refused key, a missing key, the order of setting, environment and file, and the test command. `claude plugin validate` passes and lists the environment it reads (`OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, `HOME`). The type check shows no errors.
+- `provider` set to `openai` in `~/.claude/settings.json` at the user's choice.
+- Not yet heard with a real key: the OpenAI and ElevenLabs answers were tested against stand-ins.
+
+### Notes
+- Claude did not read either `.env` file or copy a key: the claude-cs `pre_tool_use` hook blocks `.env` reads. The mod reads `~/.claude/.env` itself when an alert plays, so no key passes through a chat.

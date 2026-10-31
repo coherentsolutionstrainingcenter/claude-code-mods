@@ -1,9 +1,48 @@
 {
   "name": "spoken-alerts",
-  "version": "0.1.0",
-  "description": "Speaks two alerts with the Mac's voices: when work ends, the project, the thread and what was done; when Claude asks you something, a chime, the question and the recommended option.",
+  "version": "0.2.0",
+  "description": "Speaks two alerts with Mac, OpenAI or ElevenLabs voices: when work ends, the project, the thread and what was done; when Claude asks you something, a chime, the question and the recommended option.",
   "author": {
     "name": "Igor Waraxe"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "provider": {
+      "type": "string",
+      "title": "Voice provider",
+      "description": "mac speaks with the Mac's own voices (free, offline). openai and elevenlabs need that provider's API key; if the cloud voice fails, the Mac voice speaks.",
+      "default": "mac",
+      "options": [
+        "mac",
+        "openai",
+        "elevenlabs"
+      ]
+    },
+    "doneVoice": {
+      "type": "string",
+      "title": "Work-done voice",
+      "description": "Empty: Samantha (Mac), alloy (OpenAI), Sarah (ElevenLabs). Otherwise a Mac voice name, an OpenAI voice name or an ElevenLabs voice ID, for the provider you chose.",
+      "default": ""
+    },
+    "questionVoice": {
+      "type": "string",
+      "title": "Question voice",
+      "description": "Empty: Daniel (Mac), nova (OpenAI), George (ElevenLabs). Otherwise a voice for the provider you chose.",
+      "default": ""
+    },
+    "openaiApiKey": {
+      "type": "string",
+      "title": "OpenAI API key",
+      "description": "Needed for the openai provider. Kept in secure storage. Empty: OPENAI_API_KEY from the environment, then from ~/.claude/.env.",
+      "sensitive": true,
+      "required": false
+    },
+    "elevenlabsApiKey": {
+      "type": "string",
+      "title": "ElevenLabs API key",
+      "description": "Needed for the elevenlabs provider. Kept in secure storage. Empty: ELEVENLABS_API_KEY from the environment, then from ~/.claude/.env.",
+      "sensitive": true,
+      "required": false
+    }
+  }
 }
